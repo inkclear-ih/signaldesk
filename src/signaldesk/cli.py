@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from signaldesk.config import SourceConfigError, load_sources
+from signaldesk.digest import write_digest
 from signaldesk.rss import run_fetch
 from signaldesk.time import utc_now_iso
 
@@ -45,6 +46,35 @@ def build_parser() -> argparse.ArgumentParser:
         default=15.0,
         help="HTTP timeout in seconds.",
     )
+
+    digest_parser = subparsers.add_parser(
+        "digest",
+        help="Read raw JSON items and write a compact Markdown digest.",
+    )
+    digest_parser.add_argument(
+        "--input",
+        required=True,
+        type=Path,
+        help="Path to raw JSON output from fetch.",
+    )
+    digest_parser.add_argument(
+        "--out",
+        required=True,
+        type=Path,
+        help="Path to write Markdown digest.",
+    )
+    digest_parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help="Only include dated items from the last N days, plus undated items.",
+    )
+    digest_parser.add_argument(
+        "--max-items",
+        type=int,
+        default=25,
+        help="Maximum items to include in the digest.",
+    )
     return parser
 
 
@@ -54,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "fetch":
         return fetch_command(args)
+    if args.command == "digest":
+        return digest_command(args)
 
     parser.error(f"unknown command: {args.command}")
     return 2
@@ -111,6 +143,32 @@ def fetch_command(args: argparse.Namespace) -> int:
     if result.ok_count == 0:
         print("Every enabled source failed.", file=sys.stderr)
         return 1
+    return 0
+
+
+def digest_command(args: argparse.Namespace) -> int:
+    if args.days is not None and args.days < 1:
+        print("--days must be at least 1 when provided", file=sys.stderr)
+        return 2
+    if args.max_items < 1:
+        print("--max-items must be at least 1", file=sys.stderr)
+        return 2
+    if not args.input.exists():
+        print(f"Input file not found: {args.input}", file=sys.stderr)
+        return 2
+
+    try:
+        item_count = write_digest(
+            input_path=args.input,
+            output_path=args.out,
+            days=args.days,
+            max_items=args.max_items,
+        )
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON input: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"Digest summary: item_count={item_count} output={args.out}")
     return 0
 
 
