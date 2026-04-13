@@ -8,6 +8,7 @@ from pathlib import Path
 from signaldesk.config import SourceConfigError, load_sources
 from signaldesk.digest import write_digest
 from signaldesk.rss import run_fetch
+from signaldesk.state import ItemState
 from signaldesk.time import utc_now_iso
 
 
@@ -33,6 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         type=Path,
         help="Path to write JSON output.",
+    )
+    fetch_parser.add_argument(
+        "--state-db",
+        required=True,
+        type=Path,
+        help="Path to SQLite state database.",
     )
     fetch_parser.add_argument(
         "--limit-per-source",
@@ -109,11 +116,14 @@ def fetch_command(args: argparse.Namespace) -> int:
         print("No enabled sources found.", file=sys.stderr)
         return 2
 
-    result = run_fetch(
-        enabled_sources,
-        limit_per_source=args.limit_per_source,
-        timeout=args.timeout,
-    )
+    with ItemState(args.state_db) as state:
+        result = run_fetch(
+            enabled_sources,
+            limit_per_source=args.limit_per_source,
+            timeout=args.timeout,
+            state=state,
+            seen_at=run_started_at,
+        )
     run_finished_at = utc_now_iso()
 
     payload = {
@@ -137,6 +147,8 @@ def fetch_command(args: argparse.Namespace) -> int:
         f"ok_sources={result.ok_count} "
         f"error_sources={error_count} "
         f"item_count={len(result.items)} "
+        f"unique_items={len(result.items)} "
+        f"new_items={result.new_items} "
         f"output={args.out}"
     )
 

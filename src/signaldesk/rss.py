@@ -9,6 +9,7 @@ import feedparser
 import requests
 
 from signaldesk.config import Source
+from signaldesk.state import ItemState, compute_item_key
 from signaldesk.time import struct_time_to_iso, utc_now_iso
 
 USER_AGENT = "signaldesk/0.1 (+local research agent)"
@@ -36,6 +37,7 @@ class SourceStat:
 class FetchResult:
     source_stats: list[SourceStat]
     items: list[dict[str, Any]]
+    new_items: int
 
     @property
     def ok_count(self) -> int:
@@ -47,9 +49,13 @@ def run_fetch(
     *,
     limit_per_source: int,
     timeout: float,
+    state: ItemState,
+    seen_at: str,
 ) -> FetchResult:
     source_stats: list[SourceStat] = []
     items: list[dict[str, Any]] = []
+    seen_item_keys: set[str] = set()
+    new_items = 0
 
     for source in sources:
         fetched_at = utc_now_iso()
@@ -72,7 +78,28 @@ def run_fetch(
             )
             continue
 
-        items.extend(source_items)
+        unique_source_items = []
+        for item in source_items:
+            item_key = compute_item_key(item)
+            if item_key in seen_item_keys:
+                continue
+            seen_item_keys.add(item_key)
+
+            seen_item = state.mark_seen(item, seen_at=seen_at)
+            item.update(
+                {
+                    "item_key": seen_item.item_key,
+                    "is_new": seen_item.is_new,
+                    "first_seen_at": seen_item.first_seen_at,
+                    "last_seen_at": seen_item.last_seen_at,
+                    "seen_count": seen_item.seen_count,
+                }
+            )
+            if seen_item.is_new:
+                new_items += 1
+            unique_source_items.append(item)
+
+        items.extend(unique_source_items)
         source_stats.append(
             SourceStat(
                 source_id=source.id,
@@ -83,7 +110,7 @@ def run_fetch(
             )
         )
 
-    return FetchResult(source_stats=source_stats, items=items)
+    return FetchResult(source_stats=source_stats, items=items, new_items=new_items)
 
 
 def fetch_source(

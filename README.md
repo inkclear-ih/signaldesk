@@ -13,14 +13,14 @@ python -m pip install -e .
 ## Run
 
 ```powershell
-python -m signaldesk.cli fetch --config config/sources.yaml --out runs/latest/raw_items.json --limit-per-source 5
+python -m signaldesk.cli fetch --config config/sources.yaml --out runs/latest/raw_items.json --state-db data/state.db --limit-per-source 5
 python -m signaldesk.cli digest --input runs/latest/raw_items.json --out runs/latest/digest.md --days 7 --max-items 25
 ```
 
 You can also use the installed console script:
 
 ```powershell
-signaldesk fetch --config config/sources.yaml --out runs/latest/raw_items.json --limit-per-source 5
+signaldesk fetch --config config/sources.yaml --out runs/latest/raw_items.json --state-db data/state.db --limit-per-source 5
 signaldesk digest --input runs/latest/raw_items.json --out runs/latest/digest.md --days 7 --max-items 25
 ```
 
@@ -30,5 +30,7 @@ The output JSON contains:
 - `run_finished_at`
 - `source_stats`
 - `items`
+
+Fetch uses `--state-db` to create/update a small SQLite database of seen items. Output items keep their existing fields and also include `item_key`, `is_new`, `first_seen_at`, `last_seen_at`, and `seen_count`.
 
 The command continues when an individual source fails and prints a readable error for that source. It exits non-zero only when every enabled source fails.
