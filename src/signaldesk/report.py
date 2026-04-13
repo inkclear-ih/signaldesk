@@ -86,6 +86,7 @@ def render_report(
             ],
             "        </select>",
             '        <label class="checkbox"><input type="checkbox" id="new-only"> Show new only</label>',
+            '        <label class="checkbox"><input type="checkbox" id="unreviewed-only"> Show unreviewed only</label>',
             "      </div>",
             '      <p class="muted" id="item-count"></p>',
             _render_items(items),
@@ -188,10 +189,11 @@ def _render_item(item: dict[str, Any]) -> str:
     summary = _trim_summary(_clean_text(item.get("summary")))
     tags = [str(tag) for tag in _as_list(item.get("tags")) if str(tag).strip()]
     seen_count = item.get("seen_count")
+    item_key = _clean_text(item.get("item_key")) or ""
     is_new = item.get("is_new") is True
 
     title_html = (
-        f'<a href="{_escape_attr(link)}">{_escape(title)}</a>'
+        f'<a class="item-link" href="{_escape_attr(link)}">{_escape(title)}</a>'
         if link
         else f"<span>{_escape(title)}</span>"
     )
@@ -200,16 +202,18 @@ def _render_item(item: dict[str, Any]) -> str:
     seen_html = f"<span>seen_count: {_escape(str(seen_count))}</span>" if seen_count is not None else ""
     summary_html = f'              <p class="summary-text">{_escape(summary)}</p>' if summary else ""
     new_badge = ' <span class="badge">New</span>' if is_new else ""
+    unreviewed_badge = ' <span class="badge badge-unreviewed" data-unreviewed-badge>Unreviewed</span>'
 
     item_class = "item item-new" if is_new else "item"
 
     return "\n".join(
         [
-            f'            <article class="{item_class}" data-source="{_escape_attr(source_name)}" data-new="{str(is_new).lower()}">',
-            f"              <h4>{title_html}{new_badge}</h4>",
+            f'            <article class="{item_class}" data-source="{_escape_attr(source_name)}" data-new="{str(is_new).lower()}" data-item-key="{_escape_attr(item_key)}">',
+            f"              <h4>{title_html}{new_badge}{unreviewed_badge}</h4>",
             f'              <div class="meta"><span>{_escape(source_name)}</span>{published_html}{seen_html}</div>',
             f'              <div class="tags">{tags_html}</div>' if tags_html else '              <div class="tags"></div>',
             summary_html,
+            '              <button class="review-toggle" type="button">Mark reviewed</button>',
             "            </article>",
         ]
     )
@@ -301,10 +305,25 @@ def _css() -> str:
       font-size: 12px;
       vertical-align: middle;
     }
+    .badge-unreviewed { background: #e6f0ff; color: #17456f; }
+    .badge[hidden] { display: none; }
     .meta { display: flex; flex-wrap: wrap; gap: 8px; color: #5a6673; font-size: 13px; }
     .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
     .tags span { padding: 2px 6px; background: #eef1f4; border-radius: 6px; font-size: 12px; color: #4a5563; }
     .summary-text { margin-top: 10px; color: #2f3b47; }
+    .review-toggle {
+      margin-top: 10px;
+      padding: 5px 8px;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      background: #fff;
+      color: #2f3b47;
+      cursor: pointer;
+    }
+    .review-toggle:hover { background: #eef1f4; }
+    @media (min-width: 900px) {
+      .item-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+    }
     @media (max-width: 760px) {
       .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .source-row { grid-template-columns: 1fr; gap: 4px; }
@@ -315,13 +334,51 @@ def _css() -> str:
 def _js() -> str:
     return """    const sourceFilter = document.getElementById("source-filter");
     const newOnly = document.getElementById("new-only");
+    const unreviewedOnly = document.getElementById("unreviewed-only");
     const itemCount = document.getElementById("item-count");
     const sections = Array.from(document.querySelectorAll(".item-section"));
     const items = Array.from(document.querySelectorAll(".item"));
+    const storagePrefix = "signaldesk.reviewed.";
+
+    function storageKey(item) {
+      return `${storagePrefix}${item.dataset.itemKey}`;
+    }
+
+    function isReviewed(item) {
+      try {
+        return item.dataset.itemKey && localStorage.getItem(storageKey(item)) === "1";
+      } catch {
+        return false;
+      }
+    }
+
+    function setReviewed(item, reviewed) {
+      if (!item.dataset.itemKey) {
+        return;
+      }
+      try {
+        if (reviewed) {
+          localStorage.setItem(storageKey(item), "1");
+        } else {
+          localStorage.removeItem(storageKey(item));
+        }
+      } catch {
+      }
+    }
+
+    function syncReviewUi(item) {
+      const reviewed = isReviewed(item);
+      const badge = item.querySelector("[data-unreviewed-badge]");
+      const button = item.querySelector(".review-toggle");
+      item.dataset.reviewed = reviewed ? "true" : "false";
+      badge.hidden = reviewed;
+      button.textContent = reviewed ? "Mark unreviewed" : "Mark reviewed";
+    }
 
     function applyFilters() {
       const source = sourceFilter.value;
       const onlyNew = newOnly.checked;
+      const onlyUnreviewed = unreviewedOnly.checked;
       let visible = 0;
 
       for (const section of sections) {
@@ -333,7 +390,8 @@ def _js() -> str:
         for (const item of sectionItems) {
           const matchesSource = !source || item.dataset.source === source;
           const matchesNew = !onlyNew || item.dataset.new === "true";
-          const show = matchesSource && matchesNew;
+          const matchesUnreviewed = !onlyUnreviewed || item.dataset.reviewed !== "true";
+          const show = matchesSource && matchesNew && matchesUnreviewed;
           item.hidden = !show;
           if (show) {
             sectionVisible += 1;
@@ -349,8 +407,29 @@ def _js() -> str:
       itemCount.textContent = `${visible} of ${items.length} items shown`;
     }
 
+    for (const item of items) {
+      syncReviewUi(item);
+      const link = item.querySelector(".item-link");
+      const button = item.querySelector(".review-toggle");
+
+      if (link) {
+        link.addEventListener("click", () => {
+          setReviewed(item, true);
+          syncReviewUi(item);
+          applyFilters();
+        });
+      }
+
+      button.addEventListener("click", () => {
+        setReviewed(item, !isReviewed(item));
+        syncReviewUi(item);
+        applyFilters();
+      });
+    }
+
     sourceFilter.addEventListener("change", applyFilters);
     newOnly.addEventListener("change", applyFilters);
+    unreviewedOnly.addEventListener("change", applyFilters);
     applyFilters();"""
 
 
