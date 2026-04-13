@@ -129,13 +129,54 @@ def _render_sources(source_stats: list[dict[str, Any]]) -> str:
 
 
 def _render_items(items: list[dict[str, Any]]) -> str:
-    if not items:
-        return '      <p class="empty">No items found.</p>'
+    new_items = [item for item in items if item.get("is_new") is True]
+    seen_items = [item for item in items if item.get("is_new") is not True]
 
-    rendered = ['      <div class="items">']
+    return "\n".join(
+        [
+            '      <div class="item-sections">',
+            _render_item_section(
+                title="New items",
+                section_key="new",
+                items=new_items,
+                empty_message="No new items found.",
+            ),
+            _render_item_section(
+                title="Previously seen items",
+                section_key="previous",
+                items=seen_items,
+                empty_message="No previously seen items found.",
+            ),
+            "      </div>",
+        ]
+    )
+
+
+def _render_item_section(
+    *,
+    title: str,
+    section_key: str,
+    items: list[dict[str, Any]],
+    empty_message: str,
+) -> str:
+    filter_message = f"No {title.lower()} match the current filters."
+    empty_hidden = " hidden" if items else ""
+    rendered = [
+        f'        <section class="item-section item-section-{_escape_attr(section_key)}" data-section="{_escape_attr(section_key)}">',
+        '          <div class="section-header">',
+        f"            <h3>{_escape(title)} <span class=\"section-count\">({len(items)})</span></h3>",
+        "          </div>",
+        f'          <p class="empty section-empty" data-default-message="{_escape_attr(empty_message)}" data-filter-message="{_escape_attr(filter_message)}"{empty_hidden}>{_escape(empty_message)}</p>',
+        '          <div class="items">',
+    ]
     for item in items:
         rendered.append(_render_item(item))
-    rendered.append("      </div>")
+    rendered.extend(
+        [
+            "          </div>",
+            "        </section>",
+        ]
+    )
     return "\n".join(rendered)
 
 
@@ -157,17 +198,19 @@ def _render_item(item: dict[str, Any]) -> str:
     tags_html = " ".join(f"<span>{_escape(tag)}</span>" for tag in tags)
     published_html = f"<span>{_escape(published_at)}</span>" if published_at else ""
     seen_html = f"<span>seen_count: {_escape(str(seen_count))}</span>" if seen_count is not None else ""
-    summary_html = f'        <p class="summary-text">{_escape(summary)}</p>' if summary else ""
+    summary_html = f'              <p class="summary-text">{_escape(summary)}</p>' if summary else ""
     new_badge = ' <span class="badge">New</span>' if is_new else ""
+
+    item_class = "item item-new" if is_new else "item"
 
     return "\n".join(
         [
-            f'        <article class="item" data-source="{_escape_attr(source_name)}" data-new="{str(is_new).lower()}">',
-            f"          <h3>{title_html}{new_badge}</h3>",
-            f'          <div class="meta"><span>{_escape(source_name)}</span>{published_html}{seen_html}</div>',
-            f'          <div class="tags">{tags_html}</div>' if tags_html else '          <div class="tags"></div>',
+            f'            <article class="{item_class}" data-source="{_escape_attr(source_name)}" data-new="{str(is_new).lower()}">',
+            f"              <h4>{title_html}{new_badge}</h4>",
+            f'              <div class="meta"><span>{_escape(source_name)}</span>{published_html}{seen_html}</div>',
+            f'              <div class="tags">{tags_html}</div>' if tags_html else '              <div class="tags"></div>',
             summary_html,
-            "        </article>",
+            "            </article>",
         ]
     )
 
@@ -195,10 +238,11 @@ def _css() -> str:
     }
     .page { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }
     header, section { margin-bottom: 28px; }
-    h1, h2, h3 { margin: 0; line-height: 1.2; }
+    h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
     h1 { font-size: 32px; margin-bottom: 10px; }
     h2 { font-size: 21px; margin-bottom: 12px; }
     h3 { font-size: 17px; margin-bottom: 8px; }
+    h4 { font-size: 17px; margin-bottom: 8px; }
     p { margin: 4px 0; }
     code { background: #eef1f4; padding: 2px 5px; border-radius: 4px; }
     a { color: #0b5cad; text-decoration-thickness: 2px; text-underline-offset: 2px; }
@@ -230,9 +274,23 @@ def _css() -> str:
     select { padding: 7px 9px; border: 1px solid #b8c1cc; border-radius: 6px; background: #fff; }
     .checkbox { display: inline-flex; gap: 6px; align-items: center; }
     .muted, .empty { color: #667382; }
+    .item-sections { display: grid; gap: 22px; }
+    .item-section { margin-bottom: 0; }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 1px solid #d9dee5;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .section-header h3 { margin-bottom: 0; }
+    .section-count { color: #667382; font-weight: 500; }
     .items { display: grid; gap: 10px; }
     .item { padding: 14px; }
+    .item-new { border-color: #d9b44a; border-left: 4px solid #d9b44a; }
     .item[hidden] { display: none; }
+    .section-empty[hidden] { display: none; }
     .badge {
       display: inline-block;
       margin-left: 6px;
@@ -258,6 +316,7 @@ def _js() -> str:
     return """    const sourceFilter = document.getElementById("source-filter");
     const newOnly = document.getElementById("new-only");
     const itemCount = document.getElementById("item-count");
+    const sections = Array.from(document.querySelectorAll(".item-section"));
     const items = Array.from(document.querySelectorAll(".item"));
 
     function applyFilters() {
@@ -265,12 +324,26 @@ def _js() -> str:
       const onlyNew = newOnly.checked;
       let visible = 0;
 
-      for (const item of items) {
-        const matchesSource = !source || item.dataset.source === source;
-        const matchesNew = !onlyNew || item.dataset.new === "true";
-        const show = matchesSource && matchesNew;
-        item.hidden = !show;
-        if (show) visible += 1;
+      for (const section of sections) {
+        const sectionItems = Array.from(section.querySelectorAll(".item"));
+        const count = section.querySelector(".section-count");
+        const empty = section.querySelector(".section-empty");
+        let sectionVisible = 0;
+
+        for (const item of sectionItems) {
+          const matchesSource = !source || item.dataset.source === source;
+          const matchesNew = !onlyNew || item.dataset.new === "true";
+          const show = matchesSource && matchesNew;
+          item.hidden = !show;
+          if (show) {
+            sectionVisible += 1;
+            visible += 1;
+          }
+        }
+
+        count.textContent = `(${sectionVisible})`;
+        empty.hidden = sectionVisible > 0;
+        empty.textContent = sectionItems.length === 0 ? empty.dataset.defaultMessage : empty.dataset.filterMessage;
       }
 
       itemCount.textContent = `${visible} of ${items.length} items shown`;
