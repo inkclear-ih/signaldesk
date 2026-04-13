@@ -18,6 +18,12 @@ python -m signaldesk.cli digest --input runs/latest/raw_items.json --out runs/la
 python -m signaldesk.cli report --input runs/latest/raw_items.json --out runs/latest/report.html
 ```
 
+To generate one publish-ready static page for GitHub Pages or another static host:
+
+```powershell
+python -m signaldesk.cli report --input runs/latest/raw_items.json --out docs/index.html
+```
+
 You can also use the installed console script:
 
 ```powershell

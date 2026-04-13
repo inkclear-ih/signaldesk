@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     report_parser = subparsers.add_parser(
         "report",
-        help="Read raw JSON items and write a static local HTML report.",
+        help="Read raw JSON items and write a standalone static HTML report.",
     )
     report_parser.add_argument(
         "--input",
@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         required=True,
         type=Path,
-        help="Path to write HTML report.",
+        help="Path to write standalone HTML report.",
     )
     return parser
 
