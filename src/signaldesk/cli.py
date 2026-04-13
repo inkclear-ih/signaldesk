@@ -7,6 +7,7 @@ from pathlib import Path
 
 from signaldesk.config import SourceConfigError, load_sources
 from signaldesk.digest import write_digest
+from signaldesk.report import write_report
 from signaldesk.rss import run_fetch
 from signaldesk.state import ItemState
 from signaldesk.time import utc_now_iso
@@ -82,6 +83,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=25,
         help="Maximum items to include in the digest.",
     )
+
+    report_parser = subparsers.add_parser(
+        "report",
+        help="Read raw JSON items and write a static local HTML report.",
+    )
+    report_parser.add_argument(
+        "--input",
+        required=True,
+        type=Path,
+        help="Path to raw JSON output from fetch.",
+    )
+    report_parser.add_argument(
+        "--out",
+        required=True,
+        type=Path,
+        help="Path to write HTML report.",
+    )
     return parser
 
 
@@ -93,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         return fetch_command(args)
     if args.command == "digest":
         return digest_command(args)
+    if args.command == "report":
+        return report_command(args)
 
     parser.error(f"unknown command: {args.command}")
     return 2
@@ -181,6 +201,21 @@ def digest_command(args: argparse.Namespace) -> int:
         return 2
 
     print(f"Digest summary: item_count={item_count} output={args.out}")
+    return 0
+
+
+def report_command(args: argparse.Namespace) -> int:
+    if not args.input.exists():
+        print(f"Input file not found: {args.input}", file=sys.stderr)
+        return 2
+
+    try:
+        item_count = write_report(input_path=args.input, output_path=args.out)
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON input: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"Report summary: item_count={item_count} output={args.out}")
     return 0
 
 

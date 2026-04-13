@@ -15,6 +15,7 @@ python -m pip install -e .
 ```powershell
 python -m signaldesk.cli fetch --config config/sources.yaml --out runs/latest/raw_items.json --state-db data/state.db --limit-per-source 5
 python -m signaldesk.cli digest --input runs/latest/raw_items.json --out runs/latest/digest.md --days 7 --max-items 25
+python -m signaldesk.cli report --input runs/latest/raw_items.json --out runs/latest/report.html
 ```
 
 You can also use the installed console script:
@@ -22,6 +23,7 @@ You can also use the installed console script:
 ```powershell
 signaldesk fetch --config config/sources.yaml --out runs/latest/raw_items.json --state-db data/state.db --limit-per-source 5
 signaldesk digest --input runs/latest/raw_items.json --out runs/latest/digest.md --days 7 --max-items 25
+signaldesk report --input runs/latest/raw_items.json --out runs/latest/report.html
 ```
 
 The output JSON contains:
