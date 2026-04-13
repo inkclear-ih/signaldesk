@@ -1,0 +1,49 @@
+sources:
+  - id: openai_blog
+    name: OpenAI Blog
+    type: rss
+    url: https://openai.com/news/rss.xml
+    enabled: true
+    tags: [ai, research, product]
+
+  - id: simon_willison
+    name: Simon Willison
+    type: rss
+    url: https://simonwillison.net/atom/everything/
+    enabled: true
+    tags: [ai, developer-tools, workflow]
+
+  - id: hugging_face_blog
+    name: Hugging Face Blog
+    type: rss
+    url: https://huggingface.co/blog/feed.xml
+    enabled: true
+    tags: [ai, open-source, workflow]
+
+  - id: google_ai_blog
+    name: Google AI Blog
+    type: rss
+    url: https://blog.google/technology/ai/rss/
+    enabled: true
+    tags: [ai, research, tools]
+
+  - id: figma_blog
+    name: Figma Blog
+    type: rss
+    url: https://www.figma.com/blog/feed/atom.xml
+    enabled: true
+    tags: [design, creative-tools, workflow]
+
+  - id: github_changelog
+    name: GitHub Changelog
+    type: rss
+    url: https://github.blog/changelog/feed/
+    enabled: true
+    tags: [developer-tools, workflow, tech]
+
+  - id: zapier_blog
+    name: Zapier Blog
+    type: rss
+    url: https://zapier.com/blog/feeds/latest/
+    enabled: true
+    tags: [automation, workflow, tech]
