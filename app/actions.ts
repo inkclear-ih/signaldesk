@@ -146,14 +146,16 @@ export async function clearItemDisposition(formData: FormData) {
   }
 
   if (existing.review_state === "reviewed") {
+    const now = new Date().toISOString();
     await supabase
       .from("user_item_states")
       .update({
         disposition_state: "none",
+        reviewed_at: now,
         saved_at: null,
         archived_at: null,
         hidden_at: null,
-        updated_at: new Date().toISOString()
+        updated_at: now
       })
       .eq("user_id", userId)
       .eq("item_id", itemId);
