@@ -61,9 +61,15 @@ def render_report(
             '  <main class="page">',
             "    <header>",
             "      <h1>Signaldesk Report</h1>",
-            f"      <p>Generated: {_escape(generated_at)}</p>",
             f"      <p>Input: <code>{_escape(str(input_path))}</code></p>",
             "    </header>",
+            _render_snapshot_context(
+                generated_at=generated_at,
+                total_items=len(items),
+                new_items=new_items,
+                sources_ok=sources_ok,
+                sources_error=sources_error,
+            ),
             '    <section class="summary" aria-label="Summary">',
             _summary_row("Total items", len(items)),
             _summary_row("New items", new_items),
@@ -97,6 +103,45 @@ def render_report(
             "  </script>",
             "</body>",
             "</html>",
+        ]
+    )
+
+
+def _render_snapshot_context(
+    *,
+    generated_at: str,
+    total_items: int,
+    new_items: int,
+    sources_ok: int,
+    sources_error: int,
+) -> str:
+    return "\n".join(
+        [
+            '    <section class="snapshot-context" aria-label="Snapshot context">',
+            '      <div class="snapshot-note">',
+            "        <h2>How to read this snapshot</h2>",
+            "        <p>This static page is one selected report snapshot. It does not update continuously after it is generated.</p>",
+            "        <p><strong>New</strong> means this is the first time the system has seen the item. <strong>Unreviewed</strong> means this browser has not marked the item as reviewed yet.</p>",
+            "      </div>",
+            '      <dl class="snapshot-meta">',
+            _snapshot_meta_row("Generated", generated_at),
+            _snapshot_meta_row("Total items", str(total_items)),
+            _snapshot_meta_row("New items", str(new_items)),
+            _snapshot_meta_row("Sources ok", str(sources_ok)),
+            _snapshot_meta_row("Sources error", str(sources_error)),
+            "      </dl>",
+            "    </section>",
+        ]
+    )
+
+
+def _snapshot_meta_row(label: str, value: str) -> str:
+    return "\n".join(
+        [
+            "        <div>",
+            f"          <dt>{_escape(label)}</dt>",
+            f"          <dd>{_escape(value)}</dd>",
+            "        </div>",
         ]
     )
 
@@ -251,6 +296,26 @@ def _css() -> str:
     code { background: #eef1f4; padding: 2px 5px; border-radius: 4px; }
     a { color: #0b5cad; text-decoration-thickness: 2px; text-underline-offset: 2px; }
     a:hover { color: #083f79; }
+    .snapshot-context {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.9fr);
+      gap: 16px;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #d9dee5;
+      border-radius: 6px;
+    }
+    .snapshot-note h2 { margin-bottom: 8px; }
+    .snapshot-note p { color: #3f4b57; }
+    .snapshot-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      margin: 0;
+    }
+    .snapshot-meta div { min-width: 0; }
+    .snapshot-meta dt { color: #5a6673; font-size: 12px; }
+    .snapshot-meta dd { margin: 2px 0 0; font-weight: 700; overflow-wrap: anywhere; }
     .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
     .summary-card, .item, .source-table {
       background: #fff;
@@ -325,6 +390,7 @@ def _css() -> str:
       .item-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
     }
     @media (max-width: 760px) {
+      .snapshot-context { grid-template-columns: 1fr; }
       .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .source-row { grid-template-columns: 1fr; gap: 4px; }
       .source-head { display: none; }
