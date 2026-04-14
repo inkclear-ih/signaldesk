@@ -84,6 +84,49 @@ h2 {
   align-items: start;
 }
 
+.view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #c9d1db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #2f3b47;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.view-tab:hover,
+.view-tab.active {
+  border-color: #171717;
+  color: #171717;
+}
+
+.view-tab.active {
+  background: #171717;
+  color: #ffffff;
+}
+
+.view-count {
+  border-radius: 6px;
+  background: #eef1f4;
+  color: #4a5563;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+}
+
+.view-tab.active .view-count {
+  background: #ffffff;
+  color: #171717;
+}
+
 .inbox,
 .item-sections,
 .items,
@@ -93,6 +136,12 @@ h2 {
 
 .item-sections {
   gap: 24px;
+}
+
+.view-intro {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
 }
 
 .items {
@@ -236,8 +285,32 @@ h3.item-title {
   color: #4a5563;
 }
 
+.badge-saved {
+  background: #e6f7ed;
+  color: #1e5c35;
+}
+
+.badge-archived {
+  background: #eef1f4;
+  color: #4a5563;
+}
+
+.badge-hidden {
+  background: #f5e8e8;
+  color: #7d2f2f;
+}
+
+.item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin-top: 9px;
+}
+
 .button,
-.review-toggle {
+.review-toggle,
+.item-action {
   border: 1px solid #171717;
   border-radius: 6px;
   background: #171717;
@@ -247,20 +320,33 @@ h3.item-title {
 }
 
 .button-secondary,
-.review-toggle {
+.review-toggle,
+.item-action {
   border-color: #b8c1cc;
   background: #ffffff;
   color: #2f3b47;
 }
 
-.review-toggle {
+.review-toggle,
+.item-action {
   min-width: 112px;
   padding: 5px 9px;
 }
 
+.item-action-primary {
+  border-color: #171717;
+  background: #171717;
+  color: #ffffff;
+}
+
 .button-secondary:hover,
-.review-toggle:hover {
+.review-toggle:hover,
+.item-action:hover {
   background: #eef1f4;
+}
+
+.item-action-primary:hover {
+  background: #2f3b47;
 }
 
 .form {
@@ -335,6 +421,10 @@ h3.item-title {
     grid-template-columns: minmax(420px, 1.1fr) minmax(360px, 0.9fr);
     align-items: start;
   }
+
+  .item-sections-single {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (min-width: 1280px) {
@@ -361,7 +451,9 @@ h3.item-title {
 
 @media (max-width: 520px) {
   .item-status form,
-  .review-toggle {
+  .review-toggle,
+  .item-actions form,
+  .item-action {
     width: 100%;
   }
 }

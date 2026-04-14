@@ -5,6 +5,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+type DispositionState = "none" | "saved" | "archived" | "hidden";
+type StoredItemState = {
+  review_state: "reviewed" | null;
+  disposition_state: DispositionState;
+  reviewed_at: string | null;
+};
+
+const DISPOSITION_STATES = new Set(["saved", "archived", "hidden"]);
+
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   if (!email) {
@@ -38,24 +47,17 @@ export async function signOut() {
 }
 
 export async function markItemReviewed(formData: FormData) {
-  const itemId = String(formData.get("itemId") ?? "");
+  const itemId = getItemId(formData);
   if (!itemId) {
     return;
   }
 
-  const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/");
-  }
+  const { supabase, userId } = await getAuthenticatedContext();
 
   const now = new Date().toISOString();
   await supabase.from("user_item_states").upsert(
     {
-      user_id: user.id,
+      user_id: userId,
       item_id: itemId,
       review_state: "reviewed",
       reviewed_at: now,
@@ -64,15 +66,130 @@ export async function markItemReviewed(formData: FormData) {
     { onConflict: "user_id,item_id" }
   );
 
-  revalidatePath("/");
+  finishItemMutation(formData);
 }
 
 export async function markItemUnreviewed(formData: FormData) {
-  const itemId = String(formData.get("itemId") ?? "");
+  const itemId = getItemId(formData);
   if (!itemId) {
     return;
   }
 
+  const { supabase, userId } = await getAuthenticatedContext();
+  const existing = await getExistingItemState(supabase, userId, itemId);
+
+  if (!existing) {
+    return;
+  }
+
+  if (existing.disposition_state === "none") {
+    await supabase
+      .from("user_item_states")
+      .delete()
+      .eq("user_id", userId)
+      .eq("item_id", itemId);
+  } else {
+    await supabase
+      .from("user_item_states")
+      .update({
+        review_state: null,
+        reviewed_at: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .eq("item_id", itemId);
+  }
+
+  finishItemMutation(formData);
+}
+
+export async function setItemDisposition(formData: FormData) {
+  const itemId = getItemId(formData);
+  const disposition = String(formData.get("disposition") ?? "");
+  if (!itemId || !isDisposition(disposition)) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const existing = await getExistingItemState(supabase, userId, itemId);
+  const now = new Date().toISOString();
+
+  await supabase.from("user_item_states").upsert(
+    {
+      user_id: userId,
+      item_id: itemId,
+      review_state: "reviewed",
+      reviewed_at: existing?.reviewed_at ?? now,
+      disposition_state: disposition,
+      saved_at: disposition === "saved" ? now : null,
+      archived_at: disposition === "archived" ? now : null,
+      hidden_at: disposition === "hidden" ? now : null,
+      updated_at: now
+    },
+    { onConflict: "user_id,item_id" }
+  );
+
+  finishItemMutation(formData);
+}
+
+export async function clearItemDisposition(formData: FormData) {
+  const itemId = getItemId(formData);
+  if (!itemId) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const existing = await getExistingItemState(supabase, userId, itemId);
+
+  if (!existing || existing.disposition_state === "none") {
+    return;
+  }
+
+  if (existing.review_state === "reviewed") {
+    await supabase
+      .from("user_item_states")
+      .update({
+        disposition_state: "none",
+        saved_at: null,
+        archived_at: null,
+        hidden_at: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .eq("item_id", itemId);
+  } else {
+    await supabase
+      .from("user_item_states")
+      .delete()
+      .eq("user_id", userId)
+      .eq("item_id", itemId);
+  }
+
+  finishItemMutation(formData);
+}
+
+export async function restoreItemToInbox(formData: FormData) {
+  const itemId = getItemId(formData);
+  if (!itemId) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  await supabase
+    .from("user_item_states")
+    .delete()
+    .eq("user_id", userId)
+    .eq("item_id", itemId);
+
+  revalidatePath("/");
+  redirect("/");
+}
+
+function getItemId(formData: FormData): string {
+  return String(formData.get("itemId") ?? "");
+}
+
+async function getAuthenticatedContext() {
   const supabase = createSupabaseServerClient();
   const {
     data: { user }
@@ -82,11 +199,33 @@ export async function markItemUnreviewed(formData: FormData) {
     redirect("/");
   }
 
-  await supabase
-    .from("user_item_states")
-    .delete()
-    .eq("user_id", user.id)
-    .eq("item_id", itemId);
+  return { supabase, userId: user.id };
+}
 
+async function getExistingItemState(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  userId: string,
+  itemId: string
+): Promise<StoredItemState | null> {
+  const { data } = await supabase
+    .from("user_item_states")
+    .select("review_state, disposition_state, reviewed_at")
+    .eq("user_id", userId)
+    .eq("item_id", itemId)
+    .maybeSingle();
+
+  return (data as StoredItemState | null) ?? null;
+}
+
+function isDisposition(value: string): value is Exclude<DispositionState, "none"> {
+  return DISPOSITION_STATES.has(value);
+}
+
+function finishItemMutation(formData: FormData): never | void {
   revalidatePath("/");
+  const view = String(formData.get("view") ?? "");
+
+  if (view && view !== "inbox") {
+    redirect(`/?view=${encodeURIComponent(view)}`);
+  }
 }
