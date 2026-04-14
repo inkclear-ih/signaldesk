@@ -57,14 +57,28 @@
     .source-table { overflow: hidden; }
     .source-row {
       display: grid;
-      grid-template-columns: 2fr 110px 90px 3fr;
+      grid-template-columns: minmax(180px, 2fr) 100px 80px 90px 70px minmax(180px, 3fr);
       gap: 12px;
       padding: 10px 12px;
       border-top: 1px solid #e5e9ef;
       align-items: start;
     }
     .source-row:first-child { border-top: 0; }
+    .source-row-new {
+      background: #fffaf0;
+      border-left: 4px solid #d9b44a;
+      padding-left: 8px;
+    }
     .source-head { background: #eef1f4; color: #4a5563; font-weight: 700; font-size: 13px; }
+    .source-new-count {
+      display: inline-block;
+      min-width: 1.8em;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #eef1f4;
+      text-align: center;
+    }
+    .source-row-new .source-new-count { background: #ffe8a3; color: #604200; font-weight: 700; }
     .status { display: inline-block; padding: 2px 7px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
     .status-ok { background: #e3f5ea; color: #18633a; }
     .status-error { background: #fde7e7; color: #963131; }
@@ -141,7 +155,7 @@
       <dl class="snapshot-meta">
         <div>
           <dt>Generated</dt>
-          <dd>2026-04-14T08:34:43.834816+00:00</dd>
+          <dd>2026-04-14T09:03:34.942855+00:00</dd>
         </div>
         <div>
           <dt>Total items</dt>
@@ -183,48 +197,62 @@
       <h2>Sources</h2>
       <div class="source-table">
         <div class="source-row source-head">
-          <span>Source</span><span>Status</span><span>Items</span><span>Error</span>
+          <span>Source</span><span>Status</span><span>Fetched</span><span>Snapshot</span><span>New</span><span>Error</span>
         </div>
         <div class="source-row">
           <span>OpenAI Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">0</span></span>
           <span></span>
         </div>
-        <div class="source-row">
+        <div class="source-row source-row-new">
           <span>Simon Willison</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">2</span></span>
           <span></span>
         </div>
         <div class="source-row">
           <span>Hugging Face Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">0</span></span>
           <span></span>
         </div>
         <div class="source-row">
           <span>Google AI Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">0</span></span>
           <span></span>
         </div>
         <div class="source-row">
           <span>Figma Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">0</span></span>
           <span></span>
         </div>
-        <div class="source-row">
+        <div class="source-row source-row-new">
           <span>GitHub Changelog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">3</span></span>
           <span></span>
         </div>
-        <div class="source-row">
+        <div class="source-row source-row-new">
           <span>Zapier Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
+          <span>5</span>
+          <span><span class="source-new-count">2</span></span>
           <span></span>
         </div>
       </div>
