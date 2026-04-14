@@ -182,6 +182,10 @@ export async function restoreItemToInbox(formData: FormData) {
     .eq("item_id", itemId);
 
   revalidatePath("/");
+  const returnTo = getSafeReturnTo(formData);
+  if (returnTo) {
+    redirect(toInboxPath(returnTo));
+  }
   redirect("/");
 }
 
@@ -223,9 +227,35 @@ function isDisposition(value: string): value is Exclude<DispositionState, "none"
 
 function finishItemMutation(formData: FormData): never | void {
   revalidatePath("/");
+  const returnTo = getSafeReturnTo(formData);
+  if (returnTo) {
+    redirect(returnTo);
+  }
+
   const view = String(formData.get("view") ?? "");
 
   if (view && view !== "inbox") {
     redirect(`/?view=${encodeURIComponent(view)}`);
   }
+}
+
+function getSafeReturnTo(formData: FormData): string | null {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
+    return null;
+  }
+
+  try {
+    const url = new URL(returnTo, "http://signaldesk.local");
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
+function toInboxPath(path: string): string {
+  const url = new URL(path, "http://signaldesk.local");
+  url.searchParams.delete("view");
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
 }
