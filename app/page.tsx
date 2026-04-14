@@ -13,6 +13,7 @@ type SearchParams = {
 
 type InboxItem = {
   id: string;
+  source_id: string;
   title: string | null;
   link: string | null;
   summary: string | null;
@@ -26,6 +27,7 @@ type InboxItem = {
 
 type UserSource = {
   user_source_id: string;
+  source_id: string;
   display_name: string | null;
   user_source_status: string;
   tags: string[] | null;
@@ -35,6 +37,8 @@ type UserSource = {
   last_fetched_at: string | null;
   last_error: string | null;
 };
+
+const SUMMARY_MAX_CHARS = 360;
 
 export default async function Home({
   searchParams
@@ -71,6 +75,10 @@ export default async function Home({
   ]);
 
   const typedItems = (items ?? []) as InboxItem[];
+  const typedSources = (sources ?? []) as UserSource[];
+  const sourceTags = new Map(
+    typedSources.map((source) => [source.source_id, cleanTags(source.tags)])
+  );
   const unreviewedItems = typedItems.filter(
     (item) => item.review_state === "unreviewed"
   );
@@ -94,39 +102,49 @@ export default async function Home({
       </header>
 
       <div className="grid">
-        <section className="stack" aria-labelledby="unreviewed-heading">
-          <h2 id="unreviewed-heading">Needs review</h2>
-          {unreviewedItems.length ? (
-            unreviewedItems.map((item) => (
-              <ItemCard key={item.id} item={item} reviewed={false} />
-            ))
-          ) : (
-            <p className="empty">No unreviewed items from active sources.</p>
-          )}
-
-          <h2>Reviewed</h2>
-          {reviewedItems.length ? (
-            reviewedItems.map((item) => (
-              <ItemCard key={item.id} item={item} reviewed={true} />
-            ))
-          ) : (
-            <p className="empty">Reviewed items will appear here.</p>
-          )}
+        <section className="inbox" aria-label="Inbox items">
+          <div className="item-sections">
+            <ItemSection
+              title="Needs review"
+              items={unreviewedItems}
+              reviewed={false}
+              emptyMessage="No unreviewed items from active sources."
+              sourceTags={sourceTags}
+            />
+            <ItemSection
+              title="Reviewed"
+              items={reviewedItems}
+              reviewed={true}
+              emptyMessage="Reviewed items will appear here."
+              sourceTags={sourceTags}
+            />
+          </div>
         </section>
 
         <aside className="panel" aria-labelledby="sources-heading">
-          <h2 id="sources-heading">Sources</h2>
+          <div className="section-header section-header-panel">
+            <h2 id="sources-heading">Sources</h2>
+            <span className="section-count">({typedSources.length})</span>
+          </div>
           <div className="source-list">
-            {((sources ?? []) as UserSource[]).length ? (
-              ((sources ?? []) as UserSource[]).map((source) => (
+            {typedSources.length ? (
+              typedSources.map((source) => (
                 <div className="source" key={source.user_source_id}>
                   <p className="source-name">
                     {source.display_name || source.source_name}
                   </p>
-                  <p className="muted">{source.user_source_status}</p>
-                  <p className="muted">{source.feed_url}</p>
+                  <div className="source-meta">
+                    <span className="status">
+                      {formatStatus(source.user_source_status)}
+                    </span>
+                    {source.source_status !== source.user_source_status ? (
+                      <span>Source {formatStatus(source.source_status)}</span>
+                    ) : null}
+                  </div>
+                  {source.tags?.length ? <Tags tags={source.tags} /> : null}
+                  <p className="source-url">{source.feed_url}</p>
                   {source.last_error ? (
-                    <p className="muted">Last error: {source.last_error}</p>
+                    <p className="source-error">Last error: {source.last_error}</p>
                   ) : null}
                 </div>
               ))
@@ -137,6 +155,45 @@ export default async function Home({
         </aside>
       </div>
     </main>
+  );
+}
+
+function ItemSection({
+  title,
+  items,
+  reviewed,
+  emptyMessage,
+  sourceTags
+}: {
+  title: string;
+  items: InboxItem[];
+  reviewed: boolean;
+  emptyMessage: string;
+  sourceTags: Map<string, string[]>;
+}) {
+  const headingId = `${title.toLowerCase().replace(/\s+/g, "-")}-heading`;
+
+  return (
+    <section className="item-section" aria-labelledby={headingId}>
+      <div className="section-header">
+        <h2 id={headingId}>{title}</h2>
+        <span className="section-count">({items.length})</span>
+      </div>
+      {items.length ? (
+        <div className="items">
+          {items.map((item) => (
+            <ItemCard
+              key={item.id}
+              item={item}
+              reviewed={reviewed}
+              tags={sourceTags.get(item.source_id) ?? []}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="empty">{emptyMessage}</p>
+      )}
+    </section>
   );
 }
 
@@ -174,45 +231,154 @@ function SignedOut({ sent, error }: SearchParams) {
   );
 }
 
-function ItemCard({ item, reviewed }: { item: InboxItem; reviewed: boolean }) {
+function ItemCard({
+  item,
+  reviewed,
+  tags
+}: {
+  item: InboxItem;
+  reviewed: boolean;
+  tags: string[];
+}) {
   const action = reviewed ? markItemUnreviewed : markItemReviewed;
   const actionLabel = reviewed ? "Mark unreviewed" : "Mark reviewed";
+  const title = cleanText(item.title) ?? item.link ?? "Untitled item";
+  const summary = trimSummary(cleanText(item.summary));
+  const publishedDate = formatDate(item.published_at);
 
   return (
-    <article className="item">
-      <div className="item-head">
-        <div className="stack">
-          <div className="meta">
-            <span
-              className={
-                item.system_state === "new" ? "badge" : "badge badge-known"
-              }
-            >
-              {item.system_state === "new" ? "New" : "Known"}
-            </span>
-            <span>{item.source_name}</span>
-            {item.published_at ? (
-              <time dateTime={item.published_at}>
-                {new Date(item.published_at).toLocaleDateString()}
-              </time>
-            ) : null}
-          </div>
-          {item.link ? (
-            <a className="item-title" href={item.link} target="_blank">
-              {item.title || item.link}
-            </a>
-          ) : (
-            <h3 className="item-title">{item.title || "Untitled item"}</h3>
-          )}
-        </div>
+    <article className={item.system_state === "new" ? "item item-new" : "item"}>
+      <div className="item-source">{item.source_name}</div>
+      {item.link ? (
+        <a className="item-title" href={item.link} target="_blank">
+          {title}
+        </a>
+      ) : (
+        <h3 className="item-title">{title}</h3>
+      )}
+      <div className="published-date">
+        {publishedDate ? (
+          <time dateTime={item.published_at ?? undefined}>{publishedDate}</time>
+        ) : (
+          <span>No published date</span>
+        )}
+      </div>
+      {tags.length ? <Tags tags={tags} /> : <div className="tags" />}
+      {summary ? <p className="summary-text">{summary}</p> : null}
+      <div className="item-status">
+        <span
+          className={
+            item.system_state === "new" ? "badge" : "badge badge-known"
+          }
+        >
+          {item.system_state === "new" ? "New" : "Known"}
+        </span>
+        <span className={reviewed ? "badge badge-reviewed" : "badge badge-unreviewed"}>
+          {reviewed ? "Reviewed" : "Unreviewed"}
+        </span>
         <form action={action}>
           <input type="hidden" name="itemId" value={item.id} />
-          <button className="button button-secondary" type="submit">
+          <button className="review-toggle" type="submit">
             {actionLabel}
           </button>
         </form>
       </div>
-      {item.summary ? <p className="summary">{item.summary}</p> : null}
     </article>
   );
+}
+
+function Tags({ tags }: { tags: string[] }) {
+  const cleanedTags = cleanTags(tags);
+  if (!cleanedTags.length) {
+    return null;
+  }
+
+  return (
+    <div className="tags">
+      {cleanedTags.map((tag) => (
+        <span key={tag}>{tag}</span>
+      ))}
+    </div>
+  );
+}
+
+function cleanTags(tags: string[] | null): string[] {
+  return (tags ?? [])
+    .map((tag) => cleanText(tag))
+    .filter((tag): tag is string => Boolean(tag));
+}
+
+function cleanText(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+
+  const text = decodeHtmlEntities(String(value))
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text || null;
+}
+
+function trimSummary(value: string | null): string | null {
+  if (!value || value.length <= SUMMARY_MAX_CHARS) {
+    return value;
+  }
+
+  let trimmed = value.slice(0, SUMMARY_MAX_CHARS - 3).trimEnd();
+  if (trimmed.includes(" ")) {
+    trimmed = trimmed.slice(0, trimmed.lastIndexOf(" ")).trimEnd();
+  }
+  return `${trimmed}...`;
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_, codePoint: string) =>
+      decodeCodePoint(Number(codePoint), _)
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, codePoint: string) =>
+      decodeCodePoint(Number.parseInt(codePoint, 16), _)
+    )
+    .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, entity: string) => {
+      const entities: Record<string, string> = {
+        amp: "&",
+        lt: "<",
+        gt: ">",
+        quot: "\"",
+        apos: "'",
+        nbsp: " "
+      };
+      return entities[entity] ?? _;
+    });
+}
+
+function decodeCodePoint(codePoint: number, fallback: string): string {
+  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+    return fallback;
+  }
+
+  return String.fromCodePoint(codePoint);
+}
+
+function formatDate(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  }).format(date);
+}
+
+function formatStatus(value: string): string {
+  return value.replace(/_/g, " ");
 }
