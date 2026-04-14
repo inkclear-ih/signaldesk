@@ -78,7 +78,7 @@ def render_report(
             "    </section>",
             "    <section>",
             "      <h2>Sources</h2>",
-            _render_sources(source_stats),
+            _render_sources(source_stats, items),
             "    </section>",
             "    <section>",
             "      <h2>Items</h2>",
@@ -146,32 +146,60 @@ def _snapshot_meta_row(label: str, value: str) -> str:
     )
 
 
-def _render_sources(source_stats: list[dict[str, Any]]) -> str:
+def _render_sources(source_stats: list[dict[str, Any]], items: list[dict[str, Any]]) -> str:
     if not source_stats:
         return '      <p class="empty">No source stats found.</p>'
 
+    item_counts, new_item_counts = _source_item_counts(items)
     rows = [
         '      <div class="source-table">',
         '        <div class="source-row source-head">',
-        "          <span>Source</span><span>Status</span><span>Items</span><span>Error</span>",
+        "          <span>Source</span><span>Status</span><span>Fetched</span><span>Snapshot</span><span>New</span><span>Error</span>",
         "        </div>",
     ]
     for stat in source_stats:
-        source_name = _clean_text(stat.get("source_name")) or _clean_text(stat.get("source_id")) or "Unknown source"
+        source_name = _source_name(stat)
+        source_key = _source_key(stat)
         status = _clean_text(stat.get("status")) or "unknown"
         error = _clean_text(stat.get("error")) or ""
+        snapshot_count = item_counts.get(source_key, 0)
+        new_count = new_item_counts.get(source_key, 0)
+        row_class = "source-row source-row-new" if new_count > 0 else "source-row"
         rows.extend(
             [
-                '        <div class="source-row">',
+                f'        <div class="{row_class}">',
                 f"          <span>{_escape(source_name)}</span>",
                 f'          <span><span class="status status-{_escape_attr(status)}">{_escape(status)}</span></span>',
                 f"          <span>{_escape(str(stat.get('fetched_count', 0)))}</span>",
+                f"          <span>{snapshot_count}</span>",
+                f'          <span><span class="source-new-count">{new_count}</span></span>',
                 f"          <span>{_escape(error)}</span>",
                 "        </div>",
             ]
         )
     rows.append("      </div>")
     return "\n".join(rows)
+
+
+def _source_item_counts(items: list[dict[str, Any]]) -> tuple[dict[str, int], dict[str, int]]:
+    item_counts: dict[str, int] = {}
+    new_item_counts: dict[str, int] = {}
+    for item in items:
+        source_keys = {_source_key(item), _source_name(item)}
+        for source_key in source_keys:
+            item_counts[source_key] = item_counts.get(source_key, 0) + 1
+        if item.get("is_new") is True:
+            for source_key in source_keys:
+                new_item_counts[source_key] = new_item_counts.get(source_key, 0) + 1
+    return item_counts, new_item_counts
+
+
+def _source_key(value: dict[str, Any]) -> str:
+    return _clean_text(value.get("source_id")) or _source_name(value)
+
+
+def _source_name(value: dict[str, Any]) -> str:
+    return _clean_text(value.get("source_name")) or _clean_text(value.get("source_id")) or "Unknown source"
 
 
 def _render_items(items: list[dict[str, Any]]) -> str:
@@ -328,14 +356,28 @@ def _css() -> str:
     .source-table { overflow: hidden; }
     .source-row {
       display: grid;
-      grid-template-columns: 2fr 110px 90px 3fr;
+      grid-template-columns: minmax(180px, 2fr) 100px 80px 90px 70px minmax(180px, 3fr);
       gap: 12px;
       padding: 10px 12px;
       border-top: 1px solid #e5e9ef;
       align-items: start;
     }
     .source-row:first-child { border-top: 0; }
+    .source-row-new {
+      background: #fffaf0;
+      border-left: 4px solid #d9b44a;
+      padding-left: 8px;
+    }
     .source-head { background: #eef1f4; color: #4a5563; font-weight: 700; font-size: 13px; }
+    .source-new-count {
+      display: inline-block;
+      min-width: 1.8em;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #eef1f4;
+      text-align: center;
+    }
+    .source-row-new .source-new-count { background: #ffe8a3; color: #604200; font-weight: 700; }
     .status { display: inline-block; padding: 2px 7px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
     .status-ok { background: #e3f5ea; color: #18633a; }
     .status-error { background: #fde7e7; color: #963131; }
