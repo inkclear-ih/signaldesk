@@ -175,7 +175,10 @@ export default async function Home({
     <main className="page">
       <header className="topbar">
         <div className="brand">
-          <span className="eyebrow">Signaldesk v2 bootstrap</span>
+          <div className="brand-lockup">
+            <span className="brand-mark" aria-hidden="true" />
+            <span className="eyebrow">Signaldesk v2 bootstrap</span>
+          </div>
           <h1>Inbox</h1>
           <p className="muted">{user.email}</p>
         </div>
@@ -229,7 +232,10 @@ function SignedOut({ sent, error }: Pick<SearchParams, "sent" | "error">) {
     <main className="page">
       <section className="panel">
         <div className="brand">
-          <span className="eyebrow">Signaldesk v2 bootstrap</span>
+          <div className="brand-lockup">
+            <span className="brand-mark" aria-hidden="true" />
+            <span className="eyebrow">Signaldesk v2 bootstrap</span>
+          </div>
           <h1>Sign in</h1>
           <p className="muted">
             Use Supabase email auth to open the first synced inbox slice.
