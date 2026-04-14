@@ -298,21 +298,22 @@ def _render_item(item: dict[str, Any]) -> str:
     )
     tags_html = " ".join(f"<span>{_escape(tag)}</span>" for tag in tags)
     published_html = f"<span>{_escape(published_at)}</span>" if published_at else ""
-    seen_html = f"<span>Seen by system: {_escape(str(seen_count))}</span>" if seen_count is not None else ""
+    seen_html = f'<span class="seen-count">Seen by system: {_escape(str(seen_count))}</span>' if seen_count is not None else ""
     summary_html = f'              <p class="summary-text">{_escape(summary)}</p>' if summary else ""
-    new_badge = ' <span class="badge">New</span>' if is_new else ""
-    unreviewed_badge = ' <span class="badge badge-unreviewed" data-unreviewed-badge>Unreviewed</span>'
+    new_badge = '<span class="badge">New</span>' if is_new else ""
+    unreviewed_badge = '<span class="badge badge-unreviewed" data-unreviewed-badge>Unreviewed</span>'
 
     item_class = "item item-new" if is_new else "item"
 
     return "\n".join(
         [
             f'            <article class="{item_class}" data-source="{_escape_attr(source_name)}" data-new="{str(is_new).lower()}" data-item-key="{_escape_attr(item_key)}">',
-            f"              <h4>{title_html}{new_badge}{unreviewed_badge}</h4>",
-            f'              <div class="meta"><span>{_escape(source_name)}</span>{published_html}{seen_html}</div>',
+            f'              <div class="item-source">{_escape(source_name)}</div>',
+            f"              <h4>{title_html}</h4>",
+            f'              <div class="published-date">{published_html}</div>' if published_html else '              <div class="published-date"></div>',
             f'              <div class="tags">{tags_html}</div>' if tags_html else '              <div class="tags"></div>',
             summary_html,
-            '              <button class="review-toggle" type="button">Mark Reviewed</button>',
+            f'              <div class="item-status">{new_badge}{unreviewed_badge}{seen_html}<button class="review-toggle" type="button">Mark Reviewed</button></div>',
             "            </article>",
         ]
     )
@@ -452,7 +453,6 @@ def _css() -> str:
     .section-empty[hidden] { display: none; }
     .badge {
       display: inline-block;
-      margin-left: 6px;
       padding: 2px 6px;
       border-radius: 6px;
       background: #ffe8a3;
@@ -462,12 +462,35 @@ def _css() -> str:
     }
     .badge-unreviewed { background: #e6f0ff; color: #17456f; }
     .badge[hidden] { display: none; }
-    .meta { display: flex; flex-wrap: wrap; gap: 8px; color: #5a6673; font-size: 13px; }
+    .item-source {
+      margin-bottom: 5px;
+      color: #667382;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .published-date {
+      margin-top: 7px;
+      color: #5a6673;
+      font-size: 13px;
+    }
     .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
     .tags span { padding: 2px 6px; background: #eef1f4; border-radius: 6px; font-size: 12px; color: #4a5563; }
     .summary-text { margin-top: 10px; color: #2f3b47; }
+    .item-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #eef1f4;
+      color: #667382;
+      font-size: 12px;
+    }
+    .seen-count { margin-right: auto; }
     .review-toggle {
-      margin-top: 10px;
       padding: 5px 8px;
       border: 1px solid #b8c1cc;
       border-radius: 6px;
