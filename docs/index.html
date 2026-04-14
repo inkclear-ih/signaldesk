@@ -54,22 +54,44 @@
     .summary-card { padding: 14px; }
     .summary-card span { display: block; color: #5a6673; font-size: 13px; }
     .summary-card strong { display: block; margin-top: 4px; font-size: 24px; }
-    .source-table { overflow: hidden; }
+    .source-table { overflow-x: auto; }
     .source-row {
       display: grid;
-      grid-template-columns: minmax(180px, 2fr) 100px 80px 90px 70px minmax(180px, 3fr);
+      grid-template-columns: minmax(180px, 2fr) 100px 80px 90px 70px 120px minmax(180px, 3fr);
       gap: 12px;
+      min-width: 920px;
       padding: 10px 12px;
       border-top: 1px solid #e5e9ef;
       align-items: start;
     }
-    .source-row:first-child { border-top: 0; }
+    .source-body {
+      max-height: 360px;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      border-top: 1px solid #d9dee5;
+    }
+    .source-head, .source-body .source-row:first-child { border-top: 0; }
     .source-row-new {
       background: #fffaf0;
       border-left: 4px solid #d9b44a;
       padding-left: 8px;
     }
     .source-head { background: #eef1f4; color: #4a5563; font-weight: 700; font-size: 13px; }
+    .source-head button {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .source-head button:hover { color: #1f2933; }
+    .source-sort-arrow {
+      display: inline-block;
+      width: 1em;
+      color: #667382;
+    }
     .source-new-count {
       display: inline-block;
       min-width: 1.8em;
@@ -135,8 +157,6 @@
     @media (max-width: 760px) {
       .snapshot-context { grid-template-columns: 1fr; }
       .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .source-row { grid-template-columns: 1fr; gap: 4px; }
-      .source-head { display: none; }
     }
   </style>
 </head>
@@ -155,7 +175,7 @@
       <dl class="snapshot-meta">
         <div>
           <dt>Generated</dt>
-          <dd>2026-04-14T09:52:39.393700+00:00</dd>
+          <dd>2026-04-14T10:13:25.479143+00:00</dd>
         </div>
         <div>
           <dt>Total items</dt>
@@ -197,63 +217,78 @@
       <h2>Sources</h2>
       <div class="source-table">
         <div class="source-row source-head">
-          <span>Source</span><span>Status</span><span>Fetched</span><span>Snapshot</span><span>New</span><span>Error</span>
+          <span><button type="button" data-source-sort="name" data-sort-type="text">Source <span class="source-sort-arrow" aria-hidden="true"></span></button></span>
+          <span><button type="button" data-source-sort="status" data-sort-type="text">Status <span class="source-sort-arrow" aria-hidden="true"></span></button></span>
+          <span><button type="button" data-source-sort="fetched" data-sort-type="number">Fetched <span class="source-sort-arrow" aria-hidden="true"></span></button></span>
+          <span><button type="button" data-source-sort="snapshot" data-sort-type="number">Snapshot <span class="source-sort-arrow" aria-hidden="true"></span></button></span>
+          <span><button type="button" data-source-sort="new" data-sort-type="number">New <span class="source-sort-arrow" aria-hidden="true"></span></button></span>
+          <span><button type="button" data-source-sort="latest" data-sort-type="date">Latest item <span class="source-sort-arrow" aria-hidden="true"></span></button></span>
+          <span>Error</span>
         </div>
-        <div class="source-row">
+        <div class="source-body" id="source-body">
+          <div class="source-row" data-sort-name="openai blog" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="0" data-sort-latest="2026-04-13T06:00:00+00:00">
           <span>OpenAI Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">0</span></span>
+          <span>2026-04-13</span>
           <span></span>
-        </div>
-        <div class="source-row source-row-new">
+          </div>
+          <div class="source-row source-row-new" data-sort-name="simon willison" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="2" data-sort-latest="2026-04-13T20:59:00+00:00">
           <span>Simon Willison</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">2</span></span>
+          <span>2026-04-13</span>
           <span></span>
-        </div>
-        <div class="source-row">
+          </div>
+          <div class="source-row" data-sort-name="hugging face blog" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="0" data-sort-latest="2026-04-09T00:00:00+00:00">
           <span>Hugging Face Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">0</span></span>
+          <span>2026-04-09</span>
           <span></span>
-        </div>
-        <div class="source-row">
+          </div>
+          <div class="source-row" data-sort-name="google ai blog" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="0" data-sort-latest="2026-04-02T16:00:00+00:00">
           <span>Google AI Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">0</span></span>
+          <span>2026-04-02</span>
           <span></span>
-        </div>
-        <div class="source-row">
+          </div>
+          <div class="source-row" data-sort-name="figma blog" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="0" data-sort-latest="2026-04-09T12:00:00+00:00">
           <span>Figma Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">0</span></span>
+          <span>2026-04-09</span>
           <span></span>
-        </div>
-        <div class="source-row source-row-new">
+          </div>
+          <div class="source-row source-row-new" data-sort-name="github changelog" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="3" data-sort-latest="2026-04-13T23:03:01+00:00">
           <span>GitHub Changelog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">3</span></span>
+          <span>2026-04-13</span>
           <span></span>
-        </div>
-        <div class="source-row source-row-new">
+          </div>
+          <div class="source-row source-row-new" data-sort-name="zapier blog" data-sort-status="ok" data-sort-fetched="5" data-sort-snapshot="5" data-sort-new="2" data-sort-latest="2026-04-13T05:00:00+00:00">
           <span>Zapier Blog</span>
           <span><span class="status status-ok">ok</span></span>
           <span>5</span>
           <span>5</span>
           <span><span class="source-new-count">2</span></span>
+          <span>2026-04-13</span>
           <span></span>
+          </div>
         </div>
       </div>
     </section>
@@ -547,7 +582,47 @@
     const itemCount = document.getElementById("item-count");
     const sections = Array.from(document.querySelectorAll(".item-section"));
     const items = Array.from(document.querySelectorAll(".item"));
+    const sourceBody = document.getElementById("source-body");
+    const sourceSortButtons = Array.from(document.querySelectorAll("[data-source-sort]"));
+    let sourceSort = { key: "", direction: "asc" };
     const storagePrefix = "signaldesk.reviewed.";
+
+    function sourceSortValue(row, key, type) {
+      const value = row.dataset[`sort${key.charAt(0).toUpperCase()}${key.slice(1)}`] || "";
+      if (type === "number") {
+        return Number(value) || 0;
+      }
+      return value;
+    }
+
+    function sortSources(button) {
+      if (!sourceBody) {
+        return;
+      }
+      const key = button.dataset.sourceSort;
+      const type = button.dataset.sortType || "text";
+      const direction = sourceSort.key === key && sourceSort.direction === "asc" ? "desc" : "asc";
+      const multiplier = direction === "asc" ? 1 : -1;
+      const rows = Array.from(sourceBody.querySelectorAll(".source-row"));
+
+      rows.sort((a, b) => {
+        const aValue = sourceSortValue(a, key, type);
+        const bValue = sourceSortValue(b, key, type);
+        if (type === "date" && !aValue && bValue) return 1;
+        if (type === "date" && aValue && !bValue) return -1;
+        if (type === "number") return (aValue - bValue) * multiplier;
+        return String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: "base" }) * multiplier;
+      });
+
+      for (const row of rows) {
+        sourceBody.appendChild(row);
+      }
+      sourceSort = { key, direction };
+      for (const sortButton of sourceSortButtons) {
+        const arrow = sortButton.querySelector(".source-sort-arrow");
+        arrow.textContent = sortButton === button ? (direction === "asc" ? "\u25b2" : "\u25bc") : "";
+      }
+    }
 
     function storageKey(item) {
       return `${storagePrefix}${item.dataset.itemKey}`;
@@ -639,6 +714,9 @@
     sourceFilter.addEventListener("change", applyFilters);
     newOnly.addEventListener("change", applyFilters);
     unreviewedOnly.addEventListener("change", applyFilters);
+    for (const button of sourceSortButtons) {
+      button.addEventListener("click", () => sortSources(button));
+    }
     applyFilters();
   </script>
 </body>
