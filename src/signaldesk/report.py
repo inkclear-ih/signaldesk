@@ -121,7 +121,7 @@ def _render_snapshot_context(
             '      <div class="snapshot-note">',
             "        <h2>How to read this snapshot</h2>",
             "        <p>This static page is one selected report snapshot. It does not update continuously after it is generated.</p>",
-            "        <p><strong>New</strong> means this is the first time the system has seen the item. <strong>Unreviewed</strong> means this browser has not marked the item as reviewed yet.</p>",
+            "        <p><strong>New</strong> items are new to the system. <strong>Known</strong> items have appeared in earlier runs. <strong>Unreviewed</strong> and <strong>Reviewed</strong> describe whether this browser has marked the item as reviewed.</p>",
             "      </div>",
             '      <dl class="snapshot-meta">',
             _snapshot_meta_row("Generated", generated_at),
@@ -216,10 +216,10 @@ def _render_items(items: list[dict[str, Any]]) -> str:
                 empty_message="No new items found.",
             ),
             _render_item_section(
-                title="Previously seen items",
+                title="Known items",
                 section_key="previous",
                 items=seen_items,
-                empty_message="No previously seen items found.",
+                empty_message="No known items found.",
             ),
             "      </div>",
         ]
@@ -272,7 +272,7 @@ def _render_item(item: dict[str, Any]) -> str:
     )
     tags_html = " ".join(f"<span>{_escape(tag)}</span>" for tag in tags)
     published_html = f"<span>{_escape(published_at)}</span>" if published_at else ""
-    seen_html = f"<span>seen_count: {_escape(str(seen_count))}</span>" if seen_count is not None else ""
+    seen_html = f"<span>Seen by system: {_escape(str(seen_count))}</span>" if seen_count is not None else ""
     summary_html = f'              <p class="summary-text">{_escape(summary)}</p>' if summary else ""
     new_badge = ' <span class="badge">New</span>' if is_new else ""
     unreviewed_badge = ' <span class="badge badge-unreviewed" data-unreviewed-badge>Unreviewed</span>'
@@ -286,7 +286,7 @@ def _render_item(item: dict[str, Any]) -> str:
             f'              <div class="meta"><span>{_escape(source_name)}</span>{published_html}{seen_html}</div>',
             f'              <div class="tags">{tags_html}</div>' if tags_html else '              <div class="tags"></div>',
             summary_html,
-            '              <button class="review-toggle" type="button">Mark reviewed</button>',
+            '              <button class="review-toggle" type="button">Mark Reviewed</button>',
             "            </article>",
         ]
     )
@@ -480,7 +480,7 @@ def _js() -> str:
       const button = item.querySelector(".review-toggle");
       item.dataset.reviewed = reviewed ? "true" : "false";
       badge.hidden = reviewed;
-      button.textContent = reviewed ? "Mark unreviewed" : "Mark reviewed";
+      button.textContent = reviewed ? "Mark Unreviewed" : "Mark Reviewed";
     }
 
     function applyFilters() {
