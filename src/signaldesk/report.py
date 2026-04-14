@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -150,40 +151,60 @@ def _render_sources(source_stats: list[dict[str, Any]], items: list[dict[str, An
     if not source_stats:
         return '      <p class="empty">No source stats found.</p>'
 
-    item_counts, new_item_counts = _source_item_counts(items)
+    item_counts, new_item_counts, latest_item_dates = _source_item_stats(items)
     rows = [
         '      <div class="source-table">',
         '        <div class="source-row source-head">',
-        "          <span>Source</span><span>Status</span><span>Fetched</span><span>Snapshot</span><span>New</span><span>Error</span>",
+        '          <span><button type="button" data-source-sort="name" data-sort-type="text">Source <span class="source-sort-arrow" aria-hidden="true"></span></button></span>',
+        '          <span><button type="button" data-source-sort="status" data-sort-type="text">Status <span class="source-sort-arrow" aria-hidden="true"></span></button></span>',
+        '          <span><button type="button" data-source-sort="fetched" data-sort-type="number">Fetched <span class="source-sort-arrow" aria-hidden="true"></span></button></span>',
+        '          <span><button type="button" data-source-sort="snapshot" data-sort-type="number">Snapshot <span class="source-sort-arrow" aria-hidden="true"></span></button></span>',
+        '          <span><button type="button" data-source-sort="new" data-sort-type="number">New <span class="source-sort-arrow" aria-hidden="true"></span></button></span>',
+        '          <span><button type="button" data-source-sort="latest" data-sort-type="date">Latest item <span class="source-sort-arrow" aria-hidden="true"></span></button></span>',
+        "          <span>Error</span>",
         "        </div>",
+        '        <div class="source-body" id="source-body">',
     ]
     for stat in source_stats:
         source_name = _source_name(stat)
         source_key = _source_key(stat)
         status = _clean_text(stat.get("status")) or "unknown"
         error = _clean_text(stat.get("error")) or ""
+        fetched_count = stat.get("fetched_count", 0)
         snapshot_count = item_counts.get(source_key, 0)
         new_count = new_item_counts.get(source_key, 0)
+        latest_item_date = latest_item_dates.get(source_key)
+        latest_item_display = _escape(latest_item_date.date().isoformat()) if latest_item_date else "&#8212;"
+        latest_item_sort = latest_item_date.isoformat() if latest_item_date else ""
         row_class = "source-row source-row-new" if new_count > 0 else "source-row"
         rows.extend(
             [
-                f'        <div class="{row_class}">',
+                f'          <div class="{row_class}" data-sort-name="{_escape_attr(source_name.lower())}" data-sort-status="{_escape_attr(status.lower())}" data-sort-fetched="{_escape_attr(str(fetched_count))}" data-sort-snapshot="{snapshot_count}" data-sort-new="{new_count}" data-sort-latest="{_escape_attr(latest_item_sort)}">',
                 f"          <span>{_escape(source_name)}</span>",
                 f'          <span><span class="status status-{_escape_attr(status)}">{_escape(status)}</span></span>',
-                f"          <span>{_escape(str(stat.get('fetched_count', 0)))}</span>",
+                f"          <span>{_escape(str(fetched_count))}</span>",
                 f"          <span>{snapshot_count}</span>",
                 f'          <span><span class="source-new-count">{new_count}</span></span>',
+                f"          <span>{latest_item_display}</span>",
                 f"          <span>{_escape(error)}</span>",
-                "        </div>",
+                "          </div>",
             ]
         )
-    rows.append("      </div>")
+    rows.extend(
+        [
+            "        </div>",
+            "      </div>",
+        ]
+    )
     return "\n".join(rows)
 
 
-def _source_item_counts(items: list[dict[str, Any]]) -> tuple[dict[str, int], dict[str, int]]:
+def _source_item_stats(
+    items: list[dict[str, Any]],
+) -> tuple[dict[str, int], dict[str, int], dict[str, datetime]]:
     item_counts: dict[str, int] = {}
     new_item_counts: dict[str, int] = {}
+    latest_item_dates: dict[str, datetime] = {}
     for item in items:
         source_keys = {_source_key(item), _source_name(item)}
         for source_key in source_keys:
@@ -191,7 +212,12 @@ def _source_item_counts(items: list[dict[str, Any]]) -> tuple[dict[str, int], di
         if item.get("is_new") is True:
             for source_key in source_keys:
                 new_item_counts[source_key] = new_item_counts.get(source_key, 0) + 1
-    return item_counts, new_item_counts
+        published_at = _parse_datetime(item.get("published_at"))
+        if published_at is not None:
+            for source_key in source_keys:
+                if published_at > latest_item_dates.get(source_key, datetime.min.replace(tzinfo=UTC)):
+                    latest_item_dates[source_key] = published_at
+    return item_counts, new_item_counts, latest_item_dates
 
 
 def _source_key(value: dict[str, Any]) -> str:
@@ -353,22 +379,44 @@ def _css() -> str:
     .summary-card { padding: 14px; }
     .summary-card span { display: block; color: #5a6673; font-size: 13px; }
     .summary-card strong { display: block; margin-top: 4px; font-size: 24px; }
-    .source-table { overflow: hidden; }
+    .source-table { overflow-x: auto; }
     .source-row {
       display: grid;
-      grid-template-columns: minmax(180px, 2fr) 100px 80px 90px 70px minmax(180px, 3fr);
+      grid-template-columns: minmax(180px, 2fr) 100px 80px 90px 70px 120px minmax(180px, 3fr);
       gap: 12px;
+      min-width: 920px;
       padding: 10px 12px;
       border-top: 1px solid #e5e9ef;
       align-items: start;
     }
-    .source-row:first-child { border-top: 0; }
+    .source-body {
+      max-height: 360px;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      border-top: 1px solid #d9dee5;
+    }
+    .source-head, .source-body .source-row:first-child { border-top: 0; }
     .source-row-new {
       background: #fffaf0;
       border-left: 4px solid #d9b44a;
       padding-left: 8px;
     }
     .source-head { background: #eef1f4; color: #4a5563; font-weight: 700; font-size: 13px; }
+    .source-head button {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .source-head button:hover { color: #1f2933; }
+    .source-sort-arrow {
+      display: inline-block;
+      width: 1em;
+      color: #667382;
+    }
     .source-new-count {
       display: inline-block;
       min-width: 1.8em;
@@ -434,8 +482,6 @@ def _css() -> str:
     @media (max-width: 760px) {
       .snapshot-context { grid-template-columns: 1fr; }
       .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .source-row { grid-template-columns: 1fr; gap: 4px; }
-      .source-head { display: none; }
     }"""
 
 
@@ -446,7 +492,47 @@ def _js() -> str:
     const itemCount = document.getElementById("item-count");
     const sections = Array.from(document.querySelectorAll(".item-section"));
     const items = Array.from(document.querySelectorAll(".item"));
+    const sourceBody = document.getElementById("source-body");
+    const sourceSortButtons = Array.from(document.querySelectorAll("[data-source-sort]"));
+    let sourceSort = { key: "", direction: "asc" };
     const storagePrefix = "signaldesk.reviewed.";
+
+    function sourceSortValue(row, key, type) {
+      const value = row.dataset[`sort${key.charAt(0).toUpperCase()}${key.slice(1)}`] || "";
+      if (type === "number") {
+        return Number(value) || 0;
+      }
+      return value;
+    }
+
+    function sortSources(button) {
+      if (!sourceBody) {
+        return;
+      }
+      const key = button.dataset.sourceSort;
+      const type = button.dataset.sortType || "text";
+      const direction = sourceSort.key === key && sourceSort.direction === "asc" ? "desc" : "asc";
+      const multiplier = direction === "asc" ? 1 : -1;
+      const rows = Array.from(sourceBody.querySelectorAll(".source-row"));
+
+      rows.sort((a, b) => {
+        const aValue = sourceSortValue(a, key, type);
+        const bValue = sourceSortValue(b, key, type);
+        if (type === "date" && !aValue && bValue) return 1;
+        if (type === "date" && aValue && !bValue) return -1;
+        if (type === "number") return (aValue - bValue) * multiplier;
+        return String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: "base" }) * multiplier;
+      });
+
+      for (const row of rows) {
+        sourceBody.appendChild(row);
+      }
+      sourceSort = { key, direction };
+      for (const sortButton of sourceSortButtons) {
+        const arrow = sortButton.querySelector(".source-sort-arrow");
+        arrow.textContent = sortButton === button ? (direction === "asc" ? "\\u25b2" : "\\u25bc") : "";
+      }
+    }
 
     function storageKey(item) {
       return `${storagePrefix}${item.dataset.itemKey}`;
@@ -538,6 +624,9 @@ def _js() -> str:
     sourceFilter.addEventListener("change", applyFilters);
     newOnly.addEventListener("change", applyFilters);
     unreviewedOnly.addEventListener("change", applyFilters);
+    for (const button of sourceSortButtons) {
+      button.addEventListener("click", () => sortSources(button));
+    }
     applyFilters();"""
 
 
@@ -563,6 +652,26 @@ def _trim_summary(value: str | None) -> str | None:
     if " " in trimmed:
         trimmed = trimmed.rsplit(" ", 1)[0].rstrip()
     return trimmed + "..."
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _escape(value: str) -> str:
