@@ -7,6 +7,8 @@ export type SearchParams = {
   unreviewed?: string;
   sourceSort?: string;
   sourceDir?: string;
+  sourceMessage?: string;
+  sourceError?: string;
 };
 
 export type DispositionState = "none" | "saved" | "archived" | "hidden";
@@ -44,7 +46,7 @@ export type UserSource = {
   user_source_id: string;
   source_id: string;
   display_name: string | null;
-  user_source_status: string;
+  user_source_status: "active" | "paused" | "archived";
   tags: string[] | null;
   source_name: string;
   feed_url: string;
@@ -117,4 +119,3 @@ export type TopMetrics = {
 };
 
 export type ItemsByView = Record<InboxView, InboxItem[]>;
-
