@@ -759,9 +759,91 @@ h3.item-title {
   grid-template-columns: minmax(260px, 1fr) auto;
   gap: var(--ui-space-2);
   align-items: end;
+  margin-bottom: var(--ui-space-2);
+}
+
+.advanced-source-form {
   margin-bottom: var(--ui-space-3);
   padding-bottom: var(--ui-space-3);
   border-bottom: 1px solid var(--ui-border-faint);
+  color: var(--ui-text-subtle);
+  font-size: var(--ui-font-size-control);
+}
+
+.advanced-source-form summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--ui-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.advanced-source-form summary:hover {
+  color: var(--ui-text);
+}
+
+.feed-url-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: var(--ui-space-2);
+  align-items: end;
+  margin-top: var(--ui-space-2);
+}
+
+.feed-candidates {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-3);
+  border: 1px solid var(--ui-border-faint);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-subtle);
+  padding: var(--ui-space-2);
+}
+
+.feed-candidates-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+
+.feed-candidates h3 {
+  color: var(--ui-text);
+  font-size: var(--ui-font-size-control);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.feed-candidates .muted {
+  margin-top: 3px;
+  font-size: var(--ui-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.feed-candidate-list {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.feed-candidate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-3);
+  align-items: center;
+  border-top: 1px solid var(--ui-border-faint);
+  padding-top: var(--ui-space-2);
+}
+
+.feed-candidate-primary {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.source-feed-url {
+  color: var(--ui-text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-feedback {
@@ -1040,6 +1122,7 @@ h3.item-title {
 
   .source-summary,
   .add-source-form,
+  .feed-url-form,
   .metric-strip {
     grid-template-columns: 1fr;
   }
@@ -1057,10 +1140,15 @@ h3.item-title {
   .item-status form,
   .review-toggle,
   .item-actions form,
+  .feed-candidate-row,
   .item-action,
   .inactive-source-row,
   .source-actions {
     width: 100%;
+  }
+
+  .feed-candidate-row {
+    grid-template-columns: 1fr;
   }
 
   .inactive-source-row {

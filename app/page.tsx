@@ -225,6 +225,7 @@ export default async function Home({
         inactiveSources={inactiveSources}
         metrics={sourceMetrics}
         sourceError={searchParams?.sourceError}
+        sourceDiscovery={searchParams?.sourceDiscovery}
         sourceMessage={searchParams?.sourceMessage}
         sourceSort={sourceSort}
       />

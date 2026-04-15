@@ -9,6 +9,7 @@ export type SearchParams = {
   sourceDir?: string;
   sourceMessage?: string;
   sourceError?: string;
+  sourceDiscovery?: string;
 };
 
 export type DispositionState = "none" | "saved" | "archived" | "hidden";

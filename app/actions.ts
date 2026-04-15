@@ -10,6 +10,11 @@ import {
   validateFeedUrl,
   type FeedValidationDiagnostics
 } from "@/lib/sources/feed";
+import {
+  FeedDiscoveryError,
+  discoverFeedsFromWebsite,
+  type FeedDiscoveryCandidate
+} from "@/lib/sources/discovery";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
@@ -17,6 +22,10 @@ type StoredItemState = {
   review_state: "reviewed" | null;
   disposition_state: DispositionState;
   reviewed_at: string | null;
+};
+type ExistingUserSource = {
+  user_source_status: UserSourceStatus;
+  source_name: string | null;
 };
 
 const DISPOSITION_STATES = new Set(["saved", "archived", "hidden"]);
@@ -226,6 +235,10 @@ export async function addFeedSource(formData: FormData) {
     });
   }
 
+  const existingSource = await getExistingUserSourceByFeedUrl(
+    supabase,
+    feed.feedUrl
+  );
   const { error } = await supabase.rpc("subscribe_to_feed_source", {
     p_feed_url: feed.feedUrl,
     p_name: feed.name,
@@ -259,7 +272,57 @@ export async function addFeedSource(formData: FormData) {
   });
   finishSourceMutation(formData, {
     type: "message",
-    message: `Subscribed to ${feed.name}.`
+    message: getSubscriptionSuccessMessage(feed.name, existingSource)
+  });
+}
+
+export async function discoverWebsiteFeeds(formData: FormData) {
+  const rawWebsiteUrl = String(formData.get("websiteUrl") ?? "").trim();
+  logFeedDiscovery("start", { inputUrl: rawWebsiteUrl });
+  if (!rawWebsiteUrl) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Enter a website URL."
+    });
+  }
+
+  await getAuthenticatedContext();
+
+  let discovery;
+  try {
+    discovery = await discoverFeedsFromWebsite(rawWebsiteUrl);
+  } catch (error) {
+    logFeedDiscovery("failed", {
+      inputUrl: rawWebsiteUrl,
+      error: getErrorMessage(error)
+    });
+    finishSourceMutation(formData, {
+      type: "error",
+      message: getFeedDiscoveryErrorMessage(error)
+    });
+  }
+
+  logFeedDiscovery("complete", {
+    inputUrl: rawWebsiteUrl,
+    pageUrl: discovery.pageUrl,
+    candidates: discovery.candidates.map((candidate: FeedDiscoveryCandidate) => ({
+      feedUrl: candidate.feedUrl,
+      type: candidate.type,
+      source: candidate.source
+    }))
+  });
+
+  if (!discovery.candidates.length) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message:
+        "No RSS or Atom feed was found for that website. You can use the advanced feed URL fallback below."
+    });
+  }
+
+  finishSourceDiscovery(formData, {
+    pageUrl: discovery.pageUrl,
+    candidates: discovery.candidates
   });
 }
 
@@ -438,6 +501,18 @@ function finishSourceMutation(
   redirect(addFeedbackParam(returnTo, feedback));
 }
 
+function finishSourceDiscovery(
+  formData: FormData,
+  discovery: {
+    pageUrl: string;
+    candidates: FeedDiscoveryCandidate[];
+  }
+): never {
+  revalidatePath("/");
+  const returnTo = getSafeReturnTo(formData) ?? "/";
+  redirect(addDiscoveryParam(returnTo, discovery));
+}
+
 function getSafeReturnTo(formData: FormData): string | null {
   const returnTo = String(formData.get("returnTo") ?? "");
   if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
@@ -459,10 +534,26 @@ function addFeedbackParam(
   const url = new URL(path, "http://signaldesk.local");
   url.searchParams.delete("sourceMessage");
   url.searchParams.delete("sourceError");
+  url.searchParams.delete("sourceDiscovery");
   url.searchParams.set(
     feedback.type === "message" ? "sourceMessage" : "sourceError",
     feedback.message
   );
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+}
+
+function addDiscoveryParam(
+  path: string,
+  discovery: {
+    pageUrl: string;
+    candidates: FeedDiscoveryCandidate[];
+  }
+): string {
+  const url = new URL(path, "http://signaldesk.local");
+  url.searchParams.delete("sourceMessage");
+  url.searchParams.delete("sourceError");
+  url.searchParams.set("sourceDiscovery", JSON.stringify(discovery));
   const search = url.searchParams.toString();
   return search ? `${url.pathname}?${search}` : url.pathname;
 }
@@ -481,6 +572,42 @@ function getSubscribeErrorMessage(error: unknown): string {
   }
 
   return "Could not subscribe to that feed.";
+}
+
+function getSubscriptionSuccessMessage(
+  name: string,
+  existingSource: ExistingUserSource | null
+): string {
+  if (!existingSource) {
+    return `Subscribed to ${name}.`;
+  }
+
+  if (existingSource.user_source_status === "active") {
+    return `${existingSource.source_name ?? name} is already in your sources.`;
+  }
+
+  return `Restored ${existingSource.source_name ?? name}.`;
+}
+
+async function getExistingUserSourceByFeedUrl(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  feedUrl: string
+): Promise<ExistingUserSource | null> {
+  const { data } = await supabase
+    .from("current_user_sources")
+    .select("user_source_status, source_name")
+    .eq("feed_url", feedUrl)
+    .maybeSingle();
+
+  return (data as ExistingUserSource | null) ?? null;
+}
+
+function getFeedDiscoveryErrorMessage(error: unknown): string {
+  if (error instanceof FeedDiscoveryError) {
+    return error.message;
+  }
+
+  return "Could not discover feeds for that website.";
 }
 
 function getFeedValidationLog(
@@ -527,6 +654,14 @@ function logFeedSubscription(stage: string, data: Record<string, unknown>) {
   }
 
   console.info("[feed-subscribe]", stage, JSON.stringify(data));
+}
+
+function logFeedDiscovery(stage: string, data: Record<string, unknown>) {
+  if (!isLocalDebug()) {
+    return;
+  }
+
+  console.info("[feed-discovery]", stage, JSON.stringify(data));
 }
 
 function isLocalDebug(): boolean {

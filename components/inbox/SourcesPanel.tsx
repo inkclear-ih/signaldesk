@@ -3,6 +3,7 @@ import { RescanSourcesButton } from "./RescanSourcesButton";
 import {
   addFeedSource,
   archiveSourceSubscription,
+  discoverWebsiteFeeds,
   pauseSourceSubscription,
   rescanSources,
   resumeSourceSubscription
@@ -22,6 +23,12 @@ import type {
   SourceSortKey,
   UserSource
 } from "@/lib/inbox/types";
+import type { FeedDiscoveryCandidate } from "@/lib/sources/discovery";
+
+type SourceDiscoveryState = {
+  pageUrl: string;
+  candidates: FeedDiscoveryCandidate[];
+};
 
 export function SourcesPanel({
   activeView,
@@ -30,6 +37,7 @@ export function SourcesPanel({
   metrics,
   sourceError,
   sourceMessage,
+  sourceDiscovery,
   sourceSort
 }: {
   activeView: InboxView;
@@ -38,6 +46,7 @@ export function SourcesPanel({
   metrics: SourceMetric[];
   sourceError?: string;
   sourceMessage?: string;
+  sourceDiscovery?: string;
   sourceSort: SourceSort;
 }) {
   const { sourcesWithNew, staleSources, sourcesWithErrors } =
@@ -49,6 +58,7 @@ export function SourcesPanel({
       sensitivity: "base"
     })
   );
+  const discovery = parseSourceDiscovery(sourceDiscovery);
 
   return (
     <section className="panel sources-panel" aria-labelledby="sources-heading">
@@ -63,22 +73,26 @@ export function SourcesPanel({
         </form>
       </div>
 
-      <form className="add-source-form" action={addFeedSource}>
+      <form className="add-source-form" action={discoverWebsiteFeeds}>
         <input type="hidden" name="returnTo" value={currentHref} />
         <label className="filter-field">
-          <span>Add source by feed URL</span>
+          <span>Add a website</span>
           <input
             className="input"
-            name="feedUrl"
-            type="url"
-            placeholder="https://example.com/feed.xml"
+            inputMode="url"
+            name="websiteUrl"
+            placeholder="https://example.com/blog"
             required
           />
         </label>
         <button className="button button-compact" type="submit">
-          Add source
+          Find feeds
         </button>
       </form>
+
+      {discovery ? (
+        <FeedCandidateChooser discovery={discovery} returnTo={currentHref} />
+      ) : null}
 
       {sourceMessage ? (
         <p className="source-feedback source-feedback-ok">{sourceMessage}</p>
@@ -86,6 +100,26 @@ export function SourcesPanel({
       {sourceError ? (
         <p className="source-feedback source-feedback-error">{sourceError}</p>
       ) : null}
+
+      <details className="advanced-source-form">
+        <summary>Advanced: paste a feed URL</summary>
+        <form className="feed-url-form" action={addFeedSource}>
+          <input type="hidden" name="returnTo" value={currentHref} />
+          <label className="filter-field">
+            <span>RSS or Atom feed URL</span>
+            <input
+              className="input"
+              name="feedUrl"
+              type="url"
+              placeholder="https://example.com/feed.xml"
+              required
+            />
+          </label>
+          <button className="button button-secondary button-compact" type="submit">
+            Add feed
+          </button>
+        </form>
+      </details>
 
       <div className="source-summary" aria-label="Source summary">
         <span>
@@ -135,7 +169,7 @@ export function SourcesPanel({
           </div>
         </div>
       ) : (
-        <p className="muted">No active sources yet. Add a feed URL to start.</p>
+        <p className="muted">No active sources yet. Add a website URL to start.</p>
       )}
 
       {sortedInactiveSources.length ? (
@@ -153,6 +187,57 @@ export function SourcesPanel({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function FeedCandidateChooser({
+  discovery,
+  returnTo
+}: {
+  discovery: SourceDiscoveryState;
+  returnTo: string;
+}) {
+  const candidateCount = discovery.candidates.length;
+  const heading =
+    candidateCount === 1
+      ? "One feed found"
+      : `${candidateCount} feeds found`;
+
+  return (
+    <div className="feed-candidates" aria-label="Discovered feed candidates">
+      <div className="feed-candidates-header">
+        <div>
+          <h3>{heading}</h3>
+          <p className="muted">{discovery.pageUrl}</p>
+        </div>
+      </div>
+      <div className="feed-candidate-list">
+        {discovery.candidates.map((candidate) => (
+          <form
+            className="feed-candidate-row"
+            action={addFeedSource}
+            key={candidate.feedUrl}
+          >
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <input type="hidden" name="feedUrl" value={candidate.feedUrl} />
+            <div className="feed-candidate-primary">
+              <span className="source-name">
+                {candidate.discoveryTitle || candidate.name}
+              </span>
+              <span className="source-meta">
+                <span className="status status-active">
+                  {candidate.type.toUpperCase()}
+                </span>
+                <span className="source-feed-url">{candidate.feedUrl}</span>
+              </span>
+            </div>
+            <button className="item-action item-action-primary" type="submit">
+              Subscribe
+            </button>
+          </form>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -336,6 +421,52 @@ function SourceActionForm({
 
 function getSourceName(source: UserSource): string {
   return source.display_name || source.source_name || "Unknown source";
+}
+
+function parseSourceDiscovery(value: string | undefined): SourceDiscoveryState | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<SourceDiscoveryState>;
+    if (!parsed.pageUrl || !Array.isArray(parsed.candidates)) {
+      return null;
+    }
+
+    const candidates = parsed.candidates.filter(isFeedDiscoveryCandidate);
+    if (!candidates.length) {
+      return null;
+    }
+
+    return {
+      pageUrl: parsed.pageUrl,
+      candidates
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isFeedDiscoveryCandidate(
+  value: unknown
+): value is FeedDiscoveryCandidate {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<FeedDiscoveryCandidate>;
+  return (
+    typeof candidate.feedUrl === "string" &&
+    typeof candidate.name === "string" &&
+    (candidate.type === "rss" || candidate.type === "atom") &&
+    (candidate.siteUrl === null || typeof candidate.siteUrl === "string") &&
+    (candidate.discoveryTitle === null ||
+      typeof candidate.discoveryTitle === "string") &&
+    (candidate.source === "html" ||
+      candidate.source === "fallback" ||
+      candidate.source === "direct")
+  );
 }
 
 function SortArrow({
