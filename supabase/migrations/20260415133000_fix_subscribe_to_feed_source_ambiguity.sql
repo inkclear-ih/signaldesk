@@ -1,27 +1,3 @@
-drop policy if exists "sources select subscribed" on public.sources;
-
-create policy "sources select subscribed"
-on public.sources
-for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.user_sources us
-    where us.source_id = sources.id
-      and us.user_id = auth.uid()
-  )
-);
-
-grant update (status, paused_at, archived_at) on public.user_sources to authenticated;
-
-create policy "user_sources update own"
-on public.user_sources
-for update
-to authenticated
-using (user_id = auth.uid())
-with check (user_id = auth.uid());
-
 create or replace function public.subscribe_to_feed_source(
   p_feed_url text,
   p_name text,

@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { validateFeedUrl } from "@/lib/sources/feed";
+import { scanSources, type SourceScanSummary } from "@/lib/ingestion/scan";
+import {
+  FeedValidationError,
+  validateFeedUrl,
+  type FeedValidationDiagnostics
+} from "@/lib/sources/feed";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
@@ -195,7 +200,12 @@ export async function restoreItemToInbox(formData: FormData) {
 
 export async function addFeedSource(formData: FormData) {
   const rawFeedUrl = String(formData.get("feedUrl") ?? "").trim();
+  logFeedSubscription("start", { inputUrl: rawFeedUrl });
   if (!rawFeedUrl) {
+    logFeedSubscription("validation skipped", {
+      inputUrl: rawFeedUrl,
+      reason: "missing-url"
+    });
     finishSourceMutation(formData, {
       type: "error",
       message: "Enter a feed URL."
@@ -207,7 +217,9 @@ export async function addFeedSource(formData: FormData) {
   let feed;
   try {
     feed = await validateFeedUrl(rawFeedUrl);
+    logFeedSubscription("validation ok", feed.diagnostics);
   } catch (error) {
+    logFeedSubscription("validation failed", getFeedValidationLog(error, rawFeedUrl));
     finishSourceMutation(formData, {
       type: "error",
       message: getErrorMessage(error)
@@ -222,16 +234,76 @@ export async function addFeedSource(formData: FormData) {
   });
 
   if (error) {
+    logFeedSubscription("rpc failed", {
+      inputUrl: rawFeedUrl,
+      normalizedUrl: feed.diagnostics.normalizedUrl,
+      finalUrl: feed.feedUrl,
+      detection: feed.type,
+      title: feed.name,
+      siteUrl: feed.siteUrl,
+      supabase: getSupabaseErrorLog(error)
+    });
     finishSourceMutation(formData, {
       type: "error",
-      message: "Could not subscribe to that feed."
+      message: getSubscribeErrorMessage(error)
     });
   }
 
+  logFeedSubscription("subscribed", {
+    inputUrl: rawFeedUrl,
+    normalizedUrl: feed.diagnostics.normalizedUrl,
+    finalUrl: feed.feedUrl,
+    detection: feed.type,
+    title: feed.name,
+    siteUrl: feed.siteUrl
+  });
   finishSourceMutation(formData, {
     type: "message",
     message: `Subscribed to ${feed.name}.`
   });
+}
+
+export async function rescanSources(formData: FormData) {
+  const { supabase } = await getAuthenticatedContext();
+  const { data, error } = await supabase
+    .from("current_user_sources")
+    .select("source_id")
+    .eq("user_source_status", "active")
+    .eq("source_status", "active");
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not load active sources to scan."
+    });
+  }
+
+  const sourceIds = [
+    ...new Set(
+      (data ?? [])
+        .map((source) => String(source.source_id ?? ""))
+        .filter((sourceId) => sourceId.length > 0)
+    )
+  ];
+
+  if (!sourceIds.length) {
+    finishSourceMutation(formData, {
+      type: "message",
+      message: "No active sources to scan."
+    });
+  }
+
+  let summary: SourceScanSummary;
+  try {
+    summary = await scanSources({ sourceIds });
+  } catch (scanError) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: `Source scan failed: ${getErrorMessage(scanError)}`
+    });
+  }
+
+  finishSourceMutation(formData, getScanFeedback(summary));
 }
 
 export async function pauseSourceSubscription(formData: FormData) {
@@ -401,6 +473,103 @@ function getErrorMessage(error: unknown): string {
   }
 
   return "Could not validate that feed.";
+}
+
+function getSubscribeErrorMessage(error: unknown): string {
+  if (isLocalDebug()) {
+    return `Could not subscribe to that feed: ${getErrorMessage(error)}`;
+  }
+
+  return "Could not subscribe to that feed.";
+}
+
+function getFeedValidationLog(
+  error: unknown,
+  inputUrl: string
+): FeedValidationDiagnostics & { error: string } {
+  if (error instanceof FeedValidationError) {
+    return {
+      ...error.diagnostics,
+      inputUrl,
+      error: error.message
+    };
+  }
+
+  return {
+    inputUrl,
+    error: getErrorMessage(error)
+  };
+}
+
+function getSupabaseErrorLog(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return { message: getErrorMessage(error) };
+  }
+
+  const supabaseError = error as {
+    message?: string;
+    details?: string;
+    hint?: string;
+    code?: string;
+  };
+
+  return {
+    message: supabaseError.message,
+    details: supabaseError.details,
+    hint: supabaseError.hint,
+    code: supabaseError.code
+  };
+}
+
+function logFeedSubscription(stage: string, data: Record<string, unknown>) {
+  if (!isLocalDebug()) {
+    return;
+  }
+
+  console.info("[feed-subscribe]", stage, JSON.stringify(data));
+}
+
+function isLocalDebug(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    process.env.SIGNALDESK_DEBUG_FEEDS === "1"
+  );
+}
+
+function getScanFeedback(summary: SourceScanSummary): {
+  type: "message" | "error";
+  message: string;
+} {
+  const processed = `${summary.sourceCount} ${pluralize(
+    summary.sourceCount,
+    "source",
+    "sources"
+  )}, ${summary.fetchedCount} ${pluralize(
+    summary.fetchedCount,
+    "item",
+    "items"
+  )}`;
+  const counts = `${summary.newCount} new, ${summary.knownCount} known`;
+
+  if (summary.errorCount > 0) {
+    return {
+      type: "error",
+      message: `Scan finished with ${summary.errorCount} ${pluralize(
+        summary.errorCount,
+        "error",
+        "errors"
+      )}: ${processed} processed (${counts}).`
+    };
+  }
+
+  return {
+    type: "message",
+    message: `Scan complete: ${processed} processed (${counts}).`
+  };
+}
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural;
 }
 
 function toInboxPath(path: string): string {

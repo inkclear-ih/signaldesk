@@ -3,36 +3,91 @@ import { cleanText } from "@/lib/inbox/formatting";
 const MAX_FEED_BYTES = 1024 * 1024;
 const FEED_TIMEOUT_MS = 8000;
 
+export type FeedValidationDiagnostics = {
+  inputUrl: string;
+  normalizedUrl?: string;
+  finalUrl?: string;
+  fetchStatus?: number;
+  contentType?: string | null;
+  detection?: "rss" | "atom" | "none";
+  title?: string | null;
+  siteUrl?: string | null;
+};
+
 export type ValidatedFeed = {
   feedUrl: string;
   name: string;
   siteUrl: string | null;
   type: "rss" | "atom";
+  diagnostics: FeedValidationDiagnostics;
 };
 
 export async function validateFeedUrl(input: string): Promise<ValidatedFeed> {
-  const requestedUrl = normalizeFeedUrl(input);
-  const response = await fetch(requestedUrl, {
-    cache: "no-store",
-    headers: {
-      accept:
-        "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.7",
-      "user-agent": "Signaldesk/0.1 feed validator"
-    },
-    signal: AbortSignal.timeout(FEED_TIMEOUT_MS)
-  });
+  const diagnostics: FeedValidationDiagnostics = { inputUrl: input };
+  let requestedUrl: string;
 
-  if (!response.ok) {
-    throw new Error(`Feed returned HTTP ${response.status}.`);
+  try {
+    requestedUrl = normalizeFeedUrl(input);
+    diagnostics.normalizedUrl = requestedUrl;
+  } catch (error) {
+    throw new FeedValidationError(getErrorMessage(error), diagnostics);
   }
 
-  const xml = await readLimitedResponse(response);
-  const feedUrl = normalizeFeedUrl(response.url || requestedUrl);
-  const parsed = parseFeed(xml, feedUrl);
+  let response: Response;
+  try {
+    response = await fetch(requestedUrl, {
+      cache: "no-store",
+      headers: {
+        accept:
+          "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.7",
+        "user-agent": "Signaldesk/0.1 feed validator"
+      },
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS)
+    });
+  } catch (error) {
+    throw new FeedValidationError(
+      `Could not fetch that feed: ${getErrorMessage(error)}`,
+      diagnostics
+    );
+  }
+
+  diagnostics.fetchStatus = response.status;
+  diagnostics.finalUrl = response.url || requestedUrl;
+  diagnostics.contentType = response.headers.get("content-type");
+
+  if (!response.ok) {
+    throw new FeedValidationError(
+      `Feed returned HTTP ${response.status}.`,
+      diagnostics
+    );
+  }
+
+  let xml: string;
+  try {
+    xml = await readLimitedResponse(response);
+  } catch (error) {
+    throw new FeedValidationError(getErrorMessage(error), diagnostics);
+  }
+
+  let feedUrl: string;
+  try {
+    feedUrl = normalizeFeedUrl(response.url || requestedUrl);
+  } catch (error) {
+    throw new FeedValidationError(
+      `Feed redirected to an invalid URL: ${getErrorMessage(error)}`,
+      diagnostics
+    );
+  }
+  const parsed = parseFeed(xml, feedUrl, diagnostics);
 
   return {
     feedUrl,
-    ...parsed
+    ...parsed,
+    diagnostics: {
+      ...diagnostics,
+      title: parsed.name,
+      siteUrl: parsed.siteUrl
+    }
   };
 }
 
@@ -97,26 +152,34 @@ async function readLimitedResponse(response: Response): Promise<string> {
 
 function parseFeed(
   xml: string,
-  feedUrl: string
+  feedUrl: string,
+  diagnostics: FeedValidationDiagnostics
 ): Omit<ValidatedFeed, "feedUrl"> {
   if (!xml.trim()) {
-    throw new Error("Feed response was empty.");
+    diagnostics.detection = "none";
+    throw new FeedValidationError("Feed response was empty.", diagnostics);
   }
 
   if (/<rss[\s>]/i.test(xml)) {
+    diagnostics.detection = "rss";
     const channel = extractRawElement(xml, "channel") ?? xml;
     const name = extractElement(channel, "title") ?? fallbackName(feedUrl);
     const siteUrl = normalizeOptionalUrl(extractElement(channel, "link"), feedUrl);
-    return { type: "rss", name, siteUrl };
+    return { type: "rss", name, siteUrl, diagnostics };
   }
 
   if (/<feed[\s>]/i.test(xml)) {
+    diagnostics.detection = "atom";
     const name = extractElement(xml, "title") ?? fallbackName(feedUrl);
     const siteUrl = normalizeOptionalUrl(extractAtomSiteUrl(xml), feedUrl);
-    return { type: "atom", name, siteUrl };
+    return { type: "atom", name, siteUrl, diagnostics };
   }
 
-  throw new Error("That URL did not return an RSS or Atom feed.");
+  diagnostics.detection = "none";
+  throw new FeedValidationError(
+    "That URL did not return an RSS or Atom feed.",
+    diagnostics
+  );
 }
 
 function extractElement(xml: string, name: string): string | null {
@@ -177,4 +240,22 @@ function normalizeOptionalUrl(value: string | null, baseUrl: string): string | n
 
 function fallbackName(feedUrl: string): string {
   return new URL(feedUrl).hostname.replace(/^www\./, "");
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Unknown feed validation error.";
+}
+
+export class FeedValidationError extends Error {
+  constructor(
+    message: string,
+    readonly diagnostics: FeedValidationDiagnostics
+  ) {
+    super(message);
+    this.name = "FeedValidationError";
+  }
 }
