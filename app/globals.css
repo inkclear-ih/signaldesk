@@ -470,6 +470,13 @@ select option {
   margin-bottom: var(--ui-space-3);
 }
 
+.section-title {
+  display: inline-flex;
+  gap: var(--ui-space-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
 .section-count {
   color: var(--ui-text-subtle);
   font-size: 0.86rem;
@@ -729,6 +736,10 @@ h3.item-title {
 .sources-panel {
   margin-bottom: var(--ui-space-6);
   overflow: hidden;
+}
+
+.rescan-form {
+  flex: 0 0 auto;
 }
 
 .add-source-form {
@@ -1019,6 +1030,16 @@ h3.item-title {
   .add-source-form,
   .metric-strip {
     grid-template-columns: 1fr;
+  }
+
+  .section-header-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rescan-form,
+  .rescan-form .button {
+    width: 100%;
   }
 
   .item-status form,

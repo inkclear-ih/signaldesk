@@ -1,8 +1,10 @@
 import { Tags } from "./Tags";
+import { RescanSourcesButton } from "./RescanSourcesButton";
 import {
   addFeedSource,
   archiveSourceSubscription,
   pauseSourceSubscription,
+  rescanSources,
   resumeSourceSubscription
 } from "@/app/actions";
 import { formatShortDate, formatStatus } from "@/lib/inbox/formatting";
@@ -51,8 +53,14 @@ export function SourcesPanel({
   return (
     <section className="panel sources-panel" aria-labelledby="sources-heading">
       <div className="section-header section-header-panel">
-        <h2 id="sources-heading">Sources</h2>
-        <span className="section-count">({metrics.length})</span>
+        <div className="section-title">
+          <h2 id="sources-heading">Sources</h2>
+          <span className="section-count">({metrics.length})</span>
+        </div>
+        <form className="rescan-form" action={rescanSources}>
+          <input type="hidden" name="returnTo" value={currentHref} />
+          <RescanSourcesButton disabled={metrics.length === 0} />
+        </form>
       </div>
 
       <form className="add-source-form" action={addFeedSource}>
