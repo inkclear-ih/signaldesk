@@ -46,7 +46,8 @@ export default async function Home({
   const activeView = parseView(searchParams?.view);
   const sourceSort = parseSourceSort(searchParams);
   const [
-    { data: inboxItems },
+    { data: newInboxItemsData },
+    { data: knownInboxItemsData },
     { data: savedItems },
     { data: archivedItems },
     { data: hiddenItems },
@@ -63,7 +64,17 @@ export default async function Home({
       .select("*")
       .eq("disposition_state", "none")
       .eq("review_state", "unreviewed")
-      .order("system_state_rank", { ascending: true })
+      .eq("system_state", "new")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("first_seen_at", { ascending: false })
+      .limit(ITEM_LIMIT),
+    supabase
+      .from("current_user_items")
+      .select("*")
+      .eq("disposition_state", "none")
+      .eq("review_state", "unreviewed")
+      .eq("system_state", "known")
+      .order("last_seen_at", { ascending: false })
       .order("published_at", { ascending: false, nullsFirst: false })
       .order("first_seen_at", { ascending: false })
       .limit(ITEM_LIMIT),
@@ -130,8 +141,12 @@ export default async function Home({
       .eq("review_state", "reviewed")
   ]);
 
+  const inboxItems = [
+    ...((newInboxItemsData ?? []) as InboxItem[]),
+    ...((knownInboxItemsData ?? []) as InboxItem[])
+  ];
   const itemsByView: ItemsByView = {
-    inbox: (inboxItems ?? []) as InboxItem[],
+    inbox: inboxItems,
     saved: (savedItems ?? []) as InboxItem[],
     archived: (archivedItems ?? []) as InboxItem[],
     hidden: (hiddenItems ?? []) as InboxItem[],

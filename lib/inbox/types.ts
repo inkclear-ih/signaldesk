@@ -31,6 +31,7 @@ export type InboxItem = {
   summary: string | null;
   published_at: string | null;
   first_seen_at: string;
+  last_seen_at: string;
   source_name: string;
   system_state: "new" | "known";
   system_state_rank: number;

@@ -1,5 +1,5 @@
 import { ItemSection } from "./ItemSection";
-import { VIEW_DETAILS } from "@/lib/inbox/constants";
+import { ITEM_LIMIT, VIEW_DETAILS } from "@/lib/inbox/constants";
 import type { InboxItem, InboxView } from "@/lib/inbox/types";
 
 export function ItemsView({
@@ -39,6 +39,7 @@ export function ItemsView({
           />
           <ItemSection
             title="Known, still unreviewed"
+            description={`Most recently seen again appear first. Showing up to ${ITEM_LIMIT}.`}
             items={knownInboxItems}
             emptyMessage="Known items are previously seen by Signaldesk but still unreviewed. Empty is good: nothing older is waiting on you."
             sourceTags={sourceTags}
@@ -63,4 +64,3 @@ export function ItemsView({
     </section>
   );
 }
-
