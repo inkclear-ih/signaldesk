@@ -18,6 +18,7 @@ import {
 import type {
   InboxView,
   ItemFilters,
+  ItemSort,
   SourceMetric,
   SourceSort,
   SourceSortKey,
@@ -34,6 +35,7 @@ export function SourcesPanel({
   activeView,
   filters,
   inactiveSources,
+  itemSort,
   metrics,
   sourceError,
   sourceMessage,
@@ -43,6 +45,7 @@ export function SourcesPanel({
   activeView: InboxView;
   filters: ItemFilters;
   inactiveSources: UserSource[];
+  itemSort: ItemSort;
   metrics: SourceMetric[];
   sourceError?: string;
   sourceMessage?: string;
@@ -51,7 +54,7 @@ export function SourcesPanel({
 }) {
   const { sourcesWithNew, staleSources, sourcesWithErrors } =
     summarizeSources(metrics);
-  const currentHref = buildHref({ view: activeView, filters, sourceSort });
+  const currentHref = buildHref({ view: activeView, filters, itemSort, sourceSort });
   const sortedInactiveSources = [...inactiveSources].sort((a, b) =>
     getSourceName(a).localeCompare(getSourceName(b), undefined, {
       numeric: true,
@@ -143,6 +146,7 @@ export function SourcesPanel({
                   href={buildHref({
                     view: activeView,
                     filters,
+                    itemSort,
                     sourceSort: nextSourceSort(sourceSort, column.key)
                   })}
                 >
@@ -160,6 +164,7 @@ export function SourcesPanel({
               <SourceRow
                 activeView={activeView}
                 filters={filters}
+                itemSort={itemSort}
                 key={metric.source.user_source_id}
                 metric={metric}
                 returnTo={currentHref}
@@ -244,12 +249,14 @@ function FeedCandidateChooser({
 function SourceRow({
   activeView,
   filters,
+  itemSort,
   metric,
   returnTo,
   sourceSort
 }: {
   activeView: InboxView;
   filters: ItemFilters;
+  itemSort: ItemSort;
   metric: SourceMetric;
   returnTo: string;
   sourceSort: SourceSort;
@@ -274,6 +281,7 @@ function SourceRow({
           href={buildHref({
             view: activeView,
             filters: { ...filters, sourceId: metric.source.source_id },
+            itemSort,
             sourceSort
           })}
           title={metric.source.feed_url}

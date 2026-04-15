@@ -349,6 +349,10 @@ h2 {
   text-transform: uppercase;
 }
 
+.filter-field-compact {
+  min-width: 150px;
+}
+
 .filter-field select {
   width: 100%;
 }

@@ -1,7 +1,9 @@
 import { buildHref } from "@/lib/inbox/navigation";
+import { ITEM_SORT_OPTIONS } from "@/lib/inbox/item-sort";
 import type {
   InboxView,
   ItemFilters as ItemFilterState,
+  ItemSort,
   SourceMetric,
   SourceSort
 } from "@/lib/inbox/types";
@@ -10,6 +12,7 @@ export function ItemFilters({
   activeView,
   filters,
   filtersActive,
+  itemSort,
   shownCount,
   sourceMetrics,
   sourceSort,
@@ -18,6 +21,7 @@ export function ItemFilters({
   activeView: InboxView;
   filters: ItemFilterState;
   filtersActive: boolean;
+  itemSort: ItemSort;
   shownCount: number;
   sourceMetrics: SourceMetric[];
   sourceSort: SourceSort;
@@ -67,11 +71,33 @@ export function ItemFilters({
           Unreviewed only
         </label>
 
+        <label className="filter-field filter-field-compact">
+          <span>Sort</span>
+          <select name="itemSort" defaultValue={itemSort.key}>
+            {ITEM_SORT_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="filter-field filter-field-compact">
+          <span>Direction</span>
+          <select name="itemDir" defaultValue={itemSort.direction}>
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+        </label>
+
         <button className="button button-compact" type="submit">
           Apply
         </button>
         {filtersActive ? (
-          <a className="filter-clear" href={buildHref({ view: activeView, sourceSort })}>
+          <a
+            className="filter-clear"
+            href={buildHref({ view: activeView, itemSort, sourceSort })}
+          >
             Clear
           </a>
         ) : null}
@@ -83,4 +109,3 @@ export function ItemFilters({
     </section>
   );
 }
-

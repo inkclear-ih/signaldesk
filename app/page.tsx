@@ -11,6 +11,7 @@ import {
   hasActiveFilters,
   parseFilters
 } from "@/lib/inbox/filters";
+import { parseItemSort, sortItems } from "@/lib/inbox/item-sort";
 import { buildSourceMetrics, buildTopMetrics, getLatestRunsBySource } from "@/lib/inbox/metrics";
 import { buildHref, parseView } from "@/lib/inbox/navigation";
 import { parseSourceSort, sortSourceMetrics } from "@/lib/inbox/source-table";
@@ -44,6 +45,7 @@ export default async function Home({
   });
 
   const activeView = parseView(searchParams?.view);
+  const itemSort = parseItemSort(searchParams);
   const sourceSort = parseSourceSort(searchParams);
   const [
     { data: newInboxItemsData },
@@ -174,15 +176,27 @@ export default async function Home({
     activeSources.map((source) => [source.source_id, cleanTags(source.tags)])
   );
   const filteredItemsByView = filterItemsByView(itemsByView, filters);
-  const activeItems = filteredItemsByView[activeView];
-  const newInboxItems = filteredItemsByView.inbox.filter(
+  const sortedItemsByView: ItemsByView = {
+    inbox: sortItems(filteredItemsByView.inbox, itemSort),
+    saved: sortItems(filteredItemsByView.saved, itemSort),
+    archived: sortItems(filteredItemsByView.archived, itemSort),
+    hidden: sortItems(filteredItemsByView.hidden, itemSort),
+    reviewed: sortItems(filteredItemsByView.reviewed, itemSort)
+  };
+  const activeItems = sortedItemsByView[activeView];
+  const newInboxItems = sortedItemsByView.inbox.filter(
     (item) => item.system_state === "new"
   );
-  const knownInboxItems = filteredItemsByView.inbox.filter(
+  const knownInboxItems = sortedItemsByView.inbox.filter(
     (item) => item.system_state === "known"
   );
   const filtersActive = hasActiveFilters(filters);
-  const currentHref = buildHref({ view: activeView, filters, sourceSort });
+  const currentHref = buildHref({
+    view: activeView,
+    filters,
+    itemSort,
+    sourceSort
+  });
   const topMetrics = buildTopMetrics(
     metricItemsList,
     activeSources.length,
@@ -213,6 +227,7 @@ export default async function Home({
       <TabsNav
         activeView={activeView}
         filters={filters}
+        itemSort={itemSort}
         itemsByView={itemsByView}
         sourceSort={sourceSort}
       />
@@ -223,6 +238,7 @@ export default async function Home({
         activeView={activeView}
         filters={filters}
         inactiveSources={inactiveSources}
+        itemSort={itemSort}
         metrics={sourceMetrics}
         sourceError={searchParams?.sourceError}
         sourceDiscovery={searchParams?.sourceDiscovery}
@@ -234,6 +250,7 @@ export default async function Home({
         activeView={activeView}
         filters={filters}
         filtersActive={filtersActive}
+        itemSort={itemSort}
         shownCount={activeItems.length}
         sourceMetrics={sourceMetrics}
         sourceSort={sourceSort}
@@ -244,6 +261,7 @@ export default async function Home({
         activeItems={activeItems}
         activeView={activeView}
         filtersActive={filtersActive}
+        itemSort={itemSort}
         knownInboxItems={knownInboxItems}
         newInboxItems={newInboxItems}
         returnTo={currentHref}

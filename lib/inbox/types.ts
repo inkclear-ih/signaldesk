@@ -5,6 +5,8 @@ export type SearchParams = {
   source?: string;
   new?: string;
   unreviewed?: string;
+  itemSort?: string;
+  itemDir?: string;
   sourceSort?: string;
   sourceDir?: string;
   sourceMessage?: string;
@@ -14,6 +16,7 @@ export type SearchParams = {
 
 export type DispositionState = "none" | "saved" | "archived" | "hidden";
 export type InboxView = "inbox" | "saved" | "archived" | "hidden" | "reviewed";
+export type ItemSortKey = "default" | "seen" | "published" | "source";
 export type SourceSortKey =
   | "source"
   | "new"
@@ -83,6 +86,11 @@ export type ItemFilters = {
   sourceId: string;
   newOnly: boolean;
   unreviewedOnly: boolean;
+};
+
+export type ItemSort = {
+  key: ItemSortKey;
+  direction: SortDirection;
 };
 
 export type SourceSort = {
