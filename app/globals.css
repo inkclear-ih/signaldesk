@@ -477,6 +477,18 @@ select option {
   min-width: 0;
 }
 
+.section-title-block {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.section-note {
+  color: var(--ui-text-subtle);
+  font-size: var(--ui-font-size-meta);
+  font-weight: 400;
+}
+
 .section-count {
   color: var(--ui-text-subtle);
   font-size: 0.86rem;

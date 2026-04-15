@@ -3,6 +3,7 @@ import type { InboxItem, InboxView } from "@/lib/inbox/types";
 
 export function ItemSection({
   title,
+  description,
   items,
   emptyMessage,
   sourceTags,
@@ -11,6 +12,7 @@ export function ItemSection({
   returnTo
 }: {
   title: string;
+  description?: string;
   items: InboxItem[];
   emptyMessage: string;
   sourceTags: Map<string, string[]>;
@@ -26,7 +28,10 @@ export function ItemSection({
   return (
     <section className="item-section" aria-labelledby={headingId}>
       <div className="section-header">
-        <h2 id={headingId}>{title}</h2>
+        <div className="section-title-block">
+          <h2 id={headingId}>{title}</h2>
+          {description ? <p className="section-note">{description}</p> : null}
+        </div>
         <span className="section-count">({items.length})</span>
       </div>
       {items.length ? (
@@ -47,4 +52,3 @@ export function ItemSection({
     </section>
   );
 }
-
