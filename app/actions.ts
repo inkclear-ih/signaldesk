@@ -4,8 +4,10 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { validateFeedUrl } from "@/lib/sources/feed";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
+type UserSourceStatus = "active" | "paused" | "archived";
 type StoredItemState = {
   review_state: "reviewed" | null;
   disposition_state: DispositionState;
@@ -191,8 +193,65 @@ export async function restoreItemToInbox(formData: FormData) {
   redirect("/");
 }
 
+export async function addFeedSource(formData: FormData) {
+  const rawFeedUrl = String(formData.get("feedUrl") ?? "").trim();
+  if (!rawFeedUrl) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Enter a feed URL."
+    });
+  }
+
+  const { supabase } = await getAuthenticatedContext();
+
+  let feed;
+  try {
+    feed = await validateFeedUrl(rawFeedUrl);
+  } catch (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: getErrorMessage(error)
+    });
+  }
+
+  const { error } = await supabase.rpc("subscribe_to_feed_source", {
+    p_feed_url: feed.feedUrl,
+    p_name: feed.name,
+    p_site_url: feed.siteUrl,
+    p_type: feed.type
+  });
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not subscribe to that feed."
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: `Subscribed to ${feed.name}.`
+  });
+}
+
+export async function pauseSourceSubscription(formData: FormData) {
+  await setSourceSubscriptionStatus(formData, "paused");
+}
+
+export async function resumeSourceSubscription(formData: FormData) {
+  await setSourceSubscriptionStatus(formData, "active");
+}
+
+export async function archiveSourceSubscription(formData: FormData) {
+  await setSourceSubscriptionStatus(formData, "archived");
+}
+
 function getItemId(formData: FormData): string {
   return String(formData.get("itemId") ?? "");
+}
+
+function getUserSourceId(formData: FormData): string {
+  return String(formData.get("userSourceId") ?? "");
 }
 
 async function getAuthenticatedContext() {
@@ -241,6 +300,72 @@ function finishItemMutation(formData: FormData): never | void {
   }
 }
 
+async function setSourceSubscriptionStatus(
+  formData: FormData,
+  status: UserSourceStatus
+) {
+  const userSourceId = getUserSourceId(formData);
+  if (!userSourceId) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const now = new Date().toISOString();
+  const statusDates = {
+    active: {
+      paused_at: null,
+      archived_at: null
+    },
+    paused: {
+      paused_at: now,
+      archived_at: null
+    },
+    archived: {
+      paused_at: null,
+      archived_at: now
+    }
+  } satisfies Record<
+    UserSourceStatus,
+    { paused_at: string | null; archived_at: string | null }
+  >;
+
+  const { error } = await supabase
+    .from("user_sources")
+    .update({
+      status,
+      ...statusDates[status]
+    })
+    .eq("id", userSourceId)
+    .eq("user_id", userId);
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not update that source."
+    });
+  }
+
+  const messages: Record<UserSourceStatus, string> = {
+    active: "Source reactivated.",
+    paused: "Source paused.",
+    archived: "Source archived."
+  };
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: messages[status]
+  });
+}
+
+function finishSourceMutation(
+  formData: FormData,
+  feedback: { type: "message" | "error"; message: string }
+): never {
+  revalidatePath("/");
+  const returnTo = getSafeReturnTo(formData) ?? "/";
+  redirect(addFeedbackParam(returnTo, feedback));
+}
+
 function getSafeReturnTo(formData: FormData): string | null {
   const returnTo = String(formData.get("returnTo") ?? "");
   if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
@@ -253,6 +378,29 @@ function getSafeReturnTo(formData: FormData): string | null {
   } catch {
     return null;
   }
+}
+
+function addFeedbackParam(
+  path: string,
+  feedback: { type: "message" | "error"; message: string }
+): string {
+  const url = new URL(path, "http://signaldesk.local");
+  url.searchParams.delete("sourceMessage");
+  url.searchParams.delete("sourceError");
+  url.searchParams.set(
+    feedback.type === "message" ? "sourceMessage" : "sourceError",
+    feedback.message
+  );
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Could not validate that feed.";
 }
 
 function toInboxPath(path: string): string {

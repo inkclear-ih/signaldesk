@@ -1,4 +1,10 @@
 import { Tags } from "./Tags";
+import {
+  addFeedSource,
+  archiveSourceSubscription,
+  pauseSourceSubscription,
+  resumeSourceSubscription
+} from "@/app/actions";
 import { formatShortDate, formatStatus } from "@/lib/inbox/formatting";
 import { buildHref } from "@/lib/inbox/navigation";
 import {
@@ -11,22 +17,36 @@ import type {
   ItemFilters,
   SourceMetric,
   SourceSort,
-  SourceSortKey
+  SourceSortKey,
+  UserSource
 } from "@/lib/inbox/types";
 
 export function SourcesPanel({
   activeView,
   filters,
+  inactiveSources,
   metrics,
+  sourceError,
+  sourceMessage,
   sourceSort
 }: {
   activeView: InboxView;
   filters: ItemFilters;
+  inactiveSources: UserSource[];
   metrics: SourceMetric[];
+  sourceError?: string;
+  sourceMessage?: string;
   sourceSort: SourceSort;
 }) {
   const { sourcesWithNew, staleSources, sourcesWithErrors } =
     summarizeSources(metrics);
+  const currentHref = buildHref({ view: activeView, filters, sourceSort });
+  const sortedInactiveSources = [...inactiveSources].sort((a, b) =>
+    getSourceName(a).localeCompare(getSourceName(b), undefined, {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
 
   return (
     <section className="panel sources-panel" aria-labelledby="sources-heading">
@@ -34,6 +54,30 @@ export function SourcesPanel({
         <h2 id="sources-heading">Sources</h2>
         <span className="section-count">({metrics.length})</span>
       </div>
+
+      <form className="add-source-form" action={addFeedSource}>
+        <input type="hidden" name="returnTo" value={currentHref} />
+        <label className="filter-field">
+          <span>Add source by feed URL</span>
+          <input
+            className="input"
+            name="feedUrl"
+            type="url"
+            placeholder="https://example.com/feed.xml"
+            required
+          />
+        </label>
+        <button className="button button-compact" type="submit">
+          Add source
+        </button>
+      </form>
+
+      {sourceMessage ? (
+        <p className="source-feedback source-feedback-ok">{sourceMessage}</p>
+      ) : null}
+      {sourceError ? (
+        <p className="source-feedback source-feedback-error">{sourceError}</p>
+      ) : null}
 
       <div className="source-summary" aria-label="Source summary">
         <span>
@@ -65,6 +109,9 @@ export function SourcesPanel({
                 </a>
               </span>
             ))}
+            <span className="source-actions" role="columnheader">
+              Actions
+            </span>
           </div>
           <div className="source-body" role="rowgroup">
             {metrics.map((metric) => (
@@ -73,14 +120,30 @@ export function SourcesPanel({
                 filters={filters}
                 key={metric.source.user_source_id}
                 metric={metric}
+                returnTo={currentHref}
                 sourceSort={sourceSort}
               />
             ))}
           </div>
         </div>
       ) : (
-        <p className="muted">No sources seeded for this user yet.</p>
+        <p className="muted">No active sources yet. Add a feed URL to start.</p>
       )}
+
+      {sortedInactiveSources.length ? (
+        <div className="inactive-sources" aria-label="Paused and archived sources">
+          <h3>Paused and archived</h3>
+          <div className="inactive-source-list">
+            {sortedInactiveSources.map((source) => (
+              <InactiveSourceRow
+                key={source.user_source_id}
+                returnTo={currentHref}
+                source={source}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -89,11 +152,13 @@ function SourceRow({
   activeView,
   filters,
   metric,
+  returnTo,
   sourceSort
 }: {
   activeView: InboxView;
   filters: ItemFilters;
   metric: SourceMetric;
+  returnTo: string;
   sourceSort: SourceSort;
 }) {
   const rowClasses = ["source-row"];
@@ -159,8 +224,110 @@ function SourceRow({
           {metric.freshness.label}
         </span>
       </span>
+      <SourceActions returnTo={returnTo} source={metric.source} />
     </div>
   );
+}
+
+function InactiveSourceRow({
+  returnTo,
+  source
+}: {
+  returnTo: string;
+  source: UserSource;
+}) {
+  return (
+    <div className="inactive-source-row">
+      <div className="inactive-source-primary">
+        <span className="source-name" title={source.feed_url}>
+          {getSourceName(source)}
+        </span>
+        <span className="source-meta">
+          <span className={`status status-${source.user_source_status}`}>
+            {formatStatus(source.user_source_status)}
+          </span>
+          {source.source_status !== "active" ? (
+            <span className={`status status-${source.source_status}`}>
+              catalog {formatStatus(source.source_status)}
+            </span>
+          ) : null}
+        </span>
+      </div>
+      <SourceActions returnTo={returnTo} source={source} />
+    </div>
+  );
+}
+
+function SourceActions({
+  returnTo,
+  source
+}: {
+  returnTo: string;
+  source: UserSource;
+}) {
+  if (source.user_source_status === "active") {
+    return (
+      <span className="source-actions" role="cell">
+        <SourceActionForm
+          action={pauseSourceSubscription}
+          label="Pause"
+          returnTo={returnTo}
+          userSourceId={source.user_source_id}
+        />
+        <SourceActionForm
+          action={archiveSourceSubscription}
+          label="Archive"
+          returnTo={returnTo}
+          userSourceId={source.user_source_id}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className="source-actions" role="cell">
+      <SourceActionForm
+        action={resumeSourceSubscription}
+        label={source.user_source_status === "archived" ? "Restore" : "Resume"}
+        returnTo={returnTo}
+        userSourceId={source.user_source_id}
+      />
+      {source.user_source_status === "paused" ? (
+        <SourceActionForm
+          action={archiveSourceSubscription}
+          label="Archive"
+          returnTo={returnTo}
+          userSourceId={source.user_source_id}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function SourceActionForm({
+  action,
+  label,
+  returnTo,
+  userSourceId
+}: {
+  action: (formData: FormData) => void | Promise<void>;
+  label: string;
+  returnTo: string;
+  userSourceId: string;
+}) {
+  return (
+    <form action={action}>
+      <input type="hidden" name="userSourceId" value={userSourceId} />
+      <input type="hidden" name="returnTo" value={returnTo} />
+      <button className="item-action" type="submit">
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function getSourceName(source: UserSource): string {
+  return source.display_name || source.source_name || "Unknown source";
 }
 
 function SortArrow({
@@ -180,4 +347,3 @@ function SortArrow({
     </span>
   );
 }
-

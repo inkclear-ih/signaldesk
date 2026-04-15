@@ -138,19 +138,25 @@ export default async function Home({
     reviewed: (reviewedItems ?? []) as InboxItem[]
   };
   const typedSources = (sources ?? []) as UserSource[];
+  const activeSources = typedSources.filter(
+    (source) => source.user_source_status === "active"
+  );
+  const inactiveSources = typedSources.filter(
+    (source) => source.user_source_status !== "active"
+  );
   const metricItemsList = (metricItems ?? []) as MetricItem[];
-  const sourceIds = new Set(typedSources.map((source) => source.source_id));
+  const sourceIds = new Set(activeSources.map((source) => source.source_id));
   const filters = parseFilters(searchParams, sourceIds);
   const latestRunsBySource = await getLatestRunsBySource(
     supabase,
-    typedSources.map((source) => source.source_id)
+    activeSources.map((source) => source.source_id)
   );
   const sourceMetrics = sortSourceMetrics(
-    buildSourceMetrics(typedSources, metricItemsList, latestRunsBySource),
+    buildSourceMetrics(activeSources, metricItemsList, latestRunsBySource),
     sourceSort
   );
   const sourceTags = new Map(
-    typedSources.map((source) => [source.source_id, cleanTags(source.tags)])
+    activeSources.map((source) => [source.source_id, cleanTags(source.tags)])
   );
   const filteredItemsByView = filterItemsByView(itemsByView, filters);
   const activeItems = filteredItemsByView[activeView];
@@ -164,7 +170,7 @@ export default async function Home({
   const currentHref = buildHref({ view: activeView, filters, sourceSort });
   const topMetrics = buildTopMetrics(
     metricItemsList,
-    typedSources.length,
+    activeSources.length,
     totalItemCount ?? metricItemsList.length,
     newItemCount,
     attentionItemCount,
@@ -201,7 +207,10 @@ export default async function Home({
       <SourcesPanel
         activeView={activeView}
         filters={filters}
+        inactiveSources={inactiveSources}
         metrics={sourceMetrics}
+        sourceError={searchParams?.sourceError}
+        sourceMessage={searchParams?.sourceMessage}
         sourceSort={sourceSort}
       />
 
