@@ -8,6 +8,24 @@ export const INSTAGRAM_UNSUPPORTED_SOURCE_MESSAGE =
 
 const DEFAULT_INSTAGRAM_GRAPH_API_VERSION = "v24.0";
 const DEFAULT_INSTAGRAM_GRAPH_HOST = "https://graph.facebook.com";
+const BUSINESS_DISCOVERY_MEDIA_LIMIT = 10;
+const BUSINESS_DISCOVERY_ACCOUNT_FIELDS = [
+  "username",
+  "name",
+  "ig_id",
+  "profile_picture_url",
+  "followers_count",
+  "follows_count",
+  "media_count"
+];
+const BUSINESS_DISCOVERY_MEDIA_FIELDS = [
+  "id",
+  "caption",
+  "media_type",
+  "media_url",
+  "permalink",
+  "timestamp"
+];
 
 export type InstagramSourceForIngestion = {
   id: string;
@@ -69,9 +87,12 @@ export class InstagramGraphApiError extends Error {
 
 type InstagramBusinessDiscoveryResponse = {
   business_discovery?: {
-    id?: string;
     ig_id?: string;
+    name?: string;
     username?: string;
+    profile_picture_url?: string;
+    followers_count?: number;
+    follows_count?: number;
     media_count?: number;
     media?: {
       data?: InstagramRawMediaItem[];
@@ -88,10 +109,8 @@ type InstagramBusinessDiscoveryResponse = {
 export async function fetchInstagramProfessionalAccountPosts(
   source: InstagramSourceForIngestion,
   {
-    limit,
     timeoutMs
   }: {
-    limit: number;
     timeoutMs: number;
   }
 ): Promise<InstagramRawMediaItem[]> {
@@ -113,9 +132,17 @@ export async function fetchInstagramProfessionalAccountPosts(
     DEFAULT_INSTAGRAM_GRAPH_API_VERSION;
   const graphHost =
     process.env.INSTAGRAM_GRAPH_HOST ?? DEFAULT_INSTAGRAM_GRAPH_HOST;
-  const url = new URL(`${graphHost.replace(/\/$/, "")}/${graphVersion}/${businessAccountId}`);
-  url.searchParams.set("fields", buildBusinessDiscoveryFields(handle, limit));
+  const endpointPath = `/${graphVersion}/${businessAccountId}`;
+  const fields = buildBusinessDiscoveryFields(handle);
+  const url = new URL(`${graphHost.replace(/\/$/, "")}${endpointPath}`);
+  url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
+  const requestDiagnostics = {
+    endpoint: endpointPath,
+    fields,
+    target_username: handle,
+    base_ig_user_id: businessAccountId
+  };
 
   const response = await fetch(url, {
     cache: "no-store",
@@ -130,8 +157,13 @@ export async function fetchInstagramProfessionalAccountPosts(
     | Record<string, unknown>;
 
   if (!response.ok) {
+    logInstagramGraphFailure({
+      httpStatus: response.status,
+      payload,
+      request: requestDiagnostics
+    });
     throw new InstagramGraphApiError(
-      getInstagramGraphErrorMessage(payload, response.status),
+      getInstagramGraphErrorMessage(payload, response.status, requestDiagnostics),
       response.status
     );
   }
@@ -143,7 +175,7 @@ export async function fetchInstagramProfessionalAccountPosts(
     throw new InstagramUnsupportedSourceError();
   }
 
-  return media.slice(0, limit);
+  return media.slice(0, BUSINESS_DISCOVERY_MEDIA_LIMIT);
 }
 
 export function normalizeInstagramMediaItem(
@@ -190,43 +222,66 @@ export function normalizeInstagramMediaItem(
   };
 }
 
-function buildBusinessDiscoveryFields(handle: string, limit: number): string {
-  const mediaFields = [
-    "id",
-    "caption",
-    "media_type",
-    "media_product_type",
-    "permalink",
-    "timestamp",
-    "thumbnail_url",
-    "media_url",
-    "username",
-    "shortcode",
-    "comments_count",
-    "like_count"
-  ].join(",");
+function buildBusinessDiscoveryFields(handle: string): string {
+  const accountFields = BUSINESS_DISCOVERY_ACCOUNT_FIELDS.join(",");
+  const mediaFields = BUSINESS_DISCOVERY_MEDIA_FIELDS.join(",");
 
   return [
     `business_discovery.username(${handle}){`,
-    "id,ig_id,username,media_count,",
-    `media.limit(${limit}){${mediaFields}}`,
+    `${accountFields},`,
+    `media.limit(${BUSINESS_DISCOVERY_MEDIA_LIMIT}){${mediaFields}}`,
     "}"
   ].join("");
 }
 
 function getInstagramGraphErrorMessage(
   payload: InstagramBusinessDiscoveryResponse | Record<string, unknown>,
-  httpStatus: number
+  httpStatus: number,
+  request: {
+    endpoint: string;
+    fields: string;
+    target_username: string;
+    base_ig_user_id: string;
+  }
 ): string {
   const error =
     payload && typeof payload === "object"
       ? (payload as InstagramBusinessDiscoveryResponse).error
       : null;
+  const errorDetails = error ? ` ${JSON.stringify(error)}` : "";
+  const requestDetails = `Request: GET ${request.endpoint}?fields=${request.fields}`;
   if (error?.message) {
-    return `Instagram Graph API returned HTTP ${httpStatus}: ${error.message}`;
+    return `Instagram Graph API returned HTTP ${httpStatus}: ${error.message}.${errorDetails} ${requestDetails}`;
   }
 
-  return `Instagram Graph API returned HTTP ${httpStatus}.`;
+  return `Instagram Graph API returned HTTP ${httpStatus}.${errorDetails} ${requestDetails}`;
+}
+
+function logInstagramGraphFailure({
+  httpStatus,
+  payload,
+  request
+}: {
+  httpStatus: number;
+  payload: InstagramBusinessDiscoveryResponse | Record<string, unknown>;
+  request: {
+    endpoint: string;
+    fields: string;
+    target_username: string;
+    base_ig_user_id: string;
+  };
+}) {
+  console.warn(
+    "[instagram-ingestion] Graph API request failed",
+    JSON.stringify({
+      httpStatus,
+      request,
+      graphError:
+        payload && typeof payload === "object"
+          ? (payload as InstagramBusinessDiscoveryResponse).error ?? null
+          : null
+    })
+  );
 }
 
 function buildInstagramPermalink(item: InstagramRawMediaItem): string | null {

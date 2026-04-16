@@ -137,7 +137,6 @@ async function scanSource(
 ): Promise<SourceScanResult> {
   if (source.type === "instagram") {
     return scanInstagramSource(supabase, source, {
-      limitPerSource,
       timeoutMs
     });
   }
@@ -268,10 +267,8 @@ async function scanInstagramSource(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   source: SourceRow,
   {
-    limitPerSource,
     timeoutMs
   }: {
-    limitPerSource: number;
     timeoutMs: number;
   }
 ): Promise<SourceScanResult> {
@@ -303,7 +300,6 @@ async function scanInstagramSource(
         metadata: source.metadata
       },
       {
-        limit: limitPerSource,
         timeoutMs
       }
     );
