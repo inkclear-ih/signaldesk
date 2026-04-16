@@ -16,6 +16,7 @@ export type SearchParams = {
 
 export type DispositionState = "none" | "saved" | "archived" | "hidden";
 export type InboxView = "inbox" | "saved" | "archived" | "hidden" | "reviewed";
+export type SourceType = "rss" | "atom" | "instagram";
 export type ItemSortKey = "default" | "seen" | "published" | "source";
 export type SourceSortKey =
   | "source"
@@ -50,11 +51,16 @@ export type InboxItem = {
 export type UserSource = {
   user_source_id: string;
   source_id: string;
+  source_type: SourceType;
+  source_key: string | null;
   display_name: string | null;
   user_source_status: "active" | "paused" | "archived";
   tags: string[] | null;
   source_name: string;
-  feed_url: string;
+  source_url: string;
+  site_url: string | null;
+  feed_url: string | null;
+  metadata: Record<string, unknown> | null;
   source_status: string;
   last_fetched_at: string | null;
   last_error: string | null;

@@ -31,6 +31,7 @@ def main() -> int:
         {
             "select": "id,type,name,feed_url,url,status",
             "status": "eq.active",
+            "type": "in.(rss,atom)",
             "order": "name.asc",
         },
     )
@@ -79,6 +80,8 @@ def ingest_source(
     )
 
     try:
+        if not source.get("feed_url"):
+            raise ValueError("feed_url is required for RSS/Atom ingestion")
         response = requests.get(
             source["feed_url"],
             headers={"User-Agent": USER_AGENT},

@@ -31,11 +31,13 @@ def main() -> int:
     source_rows: list[dict[str, Any]] = [
         {
             "type": source.type,
+            "source_key": f"{source.type}:{source.url.lower()}",
             "name": source.name,
             "url": source.url,
             "feed_url": source.url,
             "status": "active" if source.enabled else "paused",
             "last_error": None,
+            "metadata": {"source_family": "web_feed"},
         }
         for source in sources
     ]

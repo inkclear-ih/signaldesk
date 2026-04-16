@@ -15,6 +15,10 @@ import {
   discoverFeedsFromWebsite,
   type FeedDiscoveryCandidate
 } from "@/lib/sources/discovery";
+import {
+  InstagramSourceInputError,
+  normalizeInstagramAccountInput
+} from "@/lib/sources/instagram";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
@@ -273,6 +277,54 @@ export async function addFeedSource(formData: FormData) {
   finishSourceMutation(formData, {
     type: "message",
     message: getSubscriptionSuccessMessage(feed.name, existingSource)
+  });
+}
+
+export async function addInstagramSource(formData: FormData) {
+  const rawAccount = String(formData.get("instagramAccount") ?? "").trim();
+  if (!rawAccount) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Enter an Instagram handle or profile URL."
+    });
+  }
+
+  const { supabase } = await getAuthenticatedContext();
+
+  let account;
+  try {
+    account = normalizeInstagramAccountInput(rawAccount);
+  } catch (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: getInstagramInputErrorMessage(error)
+    });
+  }
+
+  const existingSource = await getExistingUserSourceBySourceKey(
+    supabase,
+    account.sourceKey
+  );
+  const { error } = await supabase.rpc("subscribe_to_instagram_source", {
+    p_handle: account.handle,
+    p_profile_url: account.profileUrl,
+    p_display_name: account.displayName,
+    p_metadata: account.metadata
+  });
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: getInstagramSubscribeErrorMessage(error)
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: getInstagramSubscriptionSuccessMessage(
+      account.displayName,
+      existingSource
+    )
   });
 }
 
@@ -600,6 +652,50 @@ async function getExistingUserSourceByFeedUrl(
     .maybeSingle();
 
   return (data as ExistingUserSource | null) ?? null;
+}
+
+async function getExistingUserSourceBySourceKey(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  sourceKey: string
+): Promise<ExistingUserSource | null> {
+  const { data } = await supabase
+    .from("current_user_sources")
+    .select("user_source_status, source_name")
+    .eq("source_key", sourceKey)
+    .maybeSingle();
+
+  return (data as ExistingUserSource | null) ?? null;
+}
+
+function getInstagramInputErrorMessage(error: unknown): string {
+  if (error instanceof InstagramSourceInputError) {
+    return error.message;
+  }
+
+  return "Could not normalize that Instagram account.";
+}
+
+function getInstagramSubscribeErrorMessage(error: unknown): string {
+  if (isLocalDebug()) {
+    return `Could not add that Instagram account: ${getErrorMessage(error)}`;
+  }
+
+  return "Could not add that Instagram account.";
+}
+
+function getInstagramSubscriptionSuccessMessage(
+  name: string,
+  existingSource: ExistingUserSource | null
+): string {
+  if (!existingSource) {
+    return `${name} added as an Instagram professional account source. Monitoring is staged for the Instagram account ingestion connection.`;
+  }
+
+  if (existingSource.user_source_status === "active") {
+    return `${existingSource.source_name ?? name} is already in your Instagram sources.`;
+  }
+
+  return `Restored ${existingSource.source_name ?? name}.`;
 }
 
 function getFeedDiscoveryErrorMessage(error: unknown): string {

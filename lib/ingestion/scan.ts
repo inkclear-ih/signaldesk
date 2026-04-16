@@ -1,4 +1,10 @@
 import { cleanText } from "@/lib/inbox/formatting";
+import {
+  INSTAGRAM_INGESTION_PENDING_MESSAGE,
+  InstagramIngestionPendingError,
+  fetchInstagramProfessionalAccountPosts,
+  normalizeInstagramMediaItem
+} from "@/lib/ingestion/instagram";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const DEFAULT_LIMIT_PER_SOURCE = 25;
@@ -8,11 +14,12 @@ const USER_AGENT = "Signaldesk/0.2 source scanner";
 
 type SourceRow = {
   id: string;
-  type: "rss" | "atom";
+  type: "rss" | "atom" | "instagram";
   name: string;
-  feed_url: string;
+  feed_url: string | null;
   url: string;
   status: string;
+  metadata: Record<string, unknown> | null;
 };
 
 type ExistingItem = {
@@ -72,7 +79,7 @@ export async function scanSources({
 
   const { data, error } = await supabase
     .from("sources")
-    .select("id,type,name,feed_url,url,status")
+    .select("id,type,name,feed_url,url,status,metadata")
     .eq("status", "active")
     .in("id", activeSourceIds)
     .order("name", { ascending: true });
@@ -81,9 +88,7 @@ export async function scanSources({
     throw new Error(`Could not load active sources: ${error.message}`);
   }
 
-  const sources = ((data ?? []) as SourceRow[]).filter((source) =>
-    Boolean(source.feed_url)
-  );
+  const sources = (data ?? []) as SourceRow[];
   const results: SourceScanResult[] = [];
 
   for (const source of sources) {
@@ -130,6 +135,22 @@ async function scanSource(
     timeoutMs: number;
   }
 ): Promise<SourceScanResult> {
+  if (source.type === "instagram") {
+    return scanInstagramSource(supabase, source);
+  }
+
+  if (!source.feed_url) {
+    return {
+      sourceId: source.id,
+      sourceName: source.name,
+      status: "error",
+      fetchedCount: 0,
+      newCount: 0,
+      knownCount: 0,
+      error: "Feed URL is missing."
+    };
+  }
+
   const startedAt = new Date().toISOString();
   const { data: run, error: runError } = await supabase
     .from("ingestion_runs")
@@ -251,6 +272,110 @@ async function scanSource(
         status: "error",
         error_message: message,
         http_status: error instanceof FeedScanError ? error.httpStatus : null
+      })
+      .eq("id", run.id);
+    await supabase
+      .from("sources")
+      .update({
+        last_fetched_at: finishedAt,
+        last_error: message
+      })
+      .eq("id", source.id);
+
+    return {
+      sourceId: source.id,
+      sourceName: source.name,
+      status: "error",
+      fetchedCount: 0,
+      newCount: 0,
+      knownCount: 0,
+      error: message
+    };
+  }
+}
+
+async function scanInstagramSource(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  source: SourceRow
+): Promise<SourceScanResult> {
+  const startedAt = new Date().toISOString();
+  const { data: run, error: runError } = await supabase
+    .from("ingestion_runs")
+    .insert({
+      source_id: source.id,
+      started_at: startedAt,
+      status: "partial"
+    })
+    .select("id")
+    .single();
+
+  if (runError || !run) {
+    throw new Error(
+      `Could not create ingestion run for ${source.name}: ${
+        runError?.message ?? "missing run"
+      }`
+    );
+  }
+
+  try {
+    const posts = await fetchInstagramProfessionalAccountPosts();
+    const entries = posts.map((post) =>
+      normalizeInstagramMediaItem(
+        {
+          id: source.id,
+          name: source.name,
+          url: source.url,
+          metadata: source.metadata
+        },
+        post
+      )
+    );
+
+    const finishedAt = new Date().toISOString();
+    await supabase
+      .from("ingestion_runs")
+      .update({
+        finished_at: finishedAt,
+        status: "ok",
+        fetched_count: entries.length,
+        new_count: 0,
+        known_count: entries.length,
+        error_message: null,
+        http_status: null
+      })
+      .eq("id", run.id);
+
+    await supabase
+      .from("sources")
+      .update({
+        last_fetched_at: finishedAt,
+        last_error: null
+      })
+      .eq("id", source.id);
+
+    return {
+      sourceId: source.id,
+      sourceName: source.name,
+      status: "ok",
+      fetchedCount: entries.length,
+      newCount: 0,
+      knownCount: entries.length,
+      error: null
+    };
+  } catch (error) {
+    const message =
+      error instanceof InstagramIngestionPendingError
+        ? INSTAGRAM_INGESTION_PENDING_MESSAGE
+        : getErrorMessage(error);
+    const finishedAt = new Date().toISOString();
+
+    await supabase
+      .from("ingestion_runs")
+      .update({
+        finished_at: finishedAt,
+        status: "error",
+        error_message: message,
+        http_status: null
       })
       .eq("id", run.id);
     await supabase

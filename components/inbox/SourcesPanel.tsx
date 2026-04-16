@@ -2,6 +2,7 @@ import { Tags } from "./Tags";
 import { RescanSourcesButton } from "./RescanSourcesButton";
 import {
   addFeedSource,
+  addInstagramSource,
   archiveSourceSubscription,
   discoverWebsiteFeeds,
   pauseSourceSubscription,
@@ -15,6 +16,7 @@ import {
   SOURCE_COLUMNS,
   summarizeSources
 } from "@/lib/inbox/source-table";
+import { getInstagramHandleFromMetadata } from "@/lib/sources/instagram";
 import type {
   InboxView,
   ItemFilters,
@@ -55,6 +57,15 @@ export function SourcesPanel({
   const { sourcesWithNew, staleSources, sourcesWithErrors } =
     summarizeSources(metrics);
   const currentHref = buildHref({ view: activeView, filters, itemSort, sourceSort });
+  const webFeedMetrics = metrics.filter((metric) =>
+    isWebFeedSource(metric.source)
+  );
+  const instagramMetrics = metrics.filter(
+    (metric) => metric.source.source_type === "instagram"
+  );
+  const scannableSourceCount = webFeedMetrics.filter(
+    (metric) => metric.source.source_status === "active"
+  ).length;
   const sortedInactiveSources = [...inactiveSources].sort((a, b) =>
     getSourceName(a).localeCompare(getSourceName(b), undefined, {
       numeric: true,
@@ -72,26 +83,61 @@ export function SourcesPanel({
         </div>
         <form className="rescan-form" action={rescanSources}>
           <input type="hidden" name="returnTo" value={currentHref} />
-          <RescanSourcesButton disabled={metrics.length === 0} />
+          <RescanSourcesButton disabled={scannableSourceCount === 0} />
         </form>
       </div>
 
-      <form className="add-source-form" action={discoverWebsiteFeeds}>
-        <input type="hidden" name="returnTo" value={currentHref} />
-        <label className="filter-field">
-          <span>Add a website</span>
-          <input
-            className="input"
-            inputMode="url"
-            name="websiteUrl"
-            placeholder="https://example.com/blog"
-            required
-          />
-        </label>
-        <button className="button button-compact" type="submit">
-          Find feeds
-        </button>
-      </form>
+      <div className="source-family-layout" aria-label="Source families">
+        <section className="source-family-section">
+          <div className="source-family-copy">
+            <h3>Web and feed sources</h3>
+            <p className="muted">
+              RSS, Atom, and website feed discovery stay on the proven feed path.
+            </p>
+          </div>
+          <form className="add-source-form" action={discoverWebsiteFeeds}>
+            <input type="hidden" name="returnTo" value={currentHref} />
+            <label className="filter-field">
+              <span>Add a website</span>
+              <input
+                className="input"
+                inputMode="url"
+                name="websiteUrl"
+                placeholder="https://example.com/blog"
+                required
+              />
+            </label>
+            <button className="button button-compact" type="submit">
+              Find feeds
+            </button>
+          </form>
+        </section>
+
+        <section className="source-family-section source-family-instagram">
+          <div className="source-family-copy">
+            <h3>Instagram professional accounts</h3>
+            <p className="muted">
+              Add creator or professional account profiles. Posting, DMs, and broad
+              social scraping are outside this source family.
+            </p>
+          </div>
+          <form className="add-source-form" action={addInstagramSource}>
+            <input type="hidden" name="returnTo" value={currentHref} />
+            <label className="filter-field">
+              <span>Add Instagram account</span>
+              <input
+                className="input"
+                name="instagramAccount"
+                placeholder="@studio or https://instagram.com/studio/"
+                required
+              />
+            </label>
+            <button className="button button-compact" type="submit">
+              Add account
+            </button>
+          </form>
+        </section>
+      </div>
 
       {discovery ? (
         <FeedCandidateChooser discovery={discovery} returnTo={currentHref} />
@@ -136,8 +182,13 @@ export function SourcesPanel({
         </span>
       </div>
 
-      {metrics.length ? (
-        <div className="source-table" role="table" aria-label="Source scan table">
+      <div className="source-family-heading">
+        <h3>Web/feed sources</h3>
+        <span className="section-count">({webFeedMetrics.length})</span>
+      </div>
+
+      {webFeedMetrics.length ? (
+        <div className="source-table" role="table" aria-label="Web and feed source scan table">
           <div className="source-row source-head" role="row">
             {SOURCE_COLUMNS.map((column) => (
               <span className={column.className} role="columnheader" key={column.key}>
@@ -160,7 +211,7 @@ export function SourcesPanel({
             </span>
           </div>
           <div className="source-body" role="rowgroup">
-            {metrics.map((metric) => (
+            {webFeedMetrics.map((metric) => (
               <SourceRow
                 activeView={activeView}
                 filters={filters}
@@ -174,8 +225,15 @@ export function SourcesPanel({
           </div>
         </div>
       ) : (
-        <p className="muted">No active sources yet. Add a website URL to start.</p>
+        <p className="muted source-family-empty">
+          No active web/feed sources yet. Add a website URL to start.
+        </p>
       )}
+
+      <InstagramSourcesSection
+        metrics={instagramMetrics}
+        returnTo={currentHref}
+      />
 
       {sortedInactiveSources.length ? (
         <div className="inactive-sources" aria-label="Paused and archived sources">
@@ -284,7 +342,7 @@ function SourceRow({
             itemSort,
             sourceSort
           })}
-          title={metric.source.feed_url}
+          title={getSourceReference(metric.source)}
         >
           {metric.name}
         </a>
@@ -330,6 +388,85 @@ function SourceRow({
   );
 }
 
+function InstagramSourcesSection({
+  metrics,
+  returnTo
+}: {
+  metrics: SourceMetric[];
+  returnTo: string;
+}) {
+  return (
+    <section className="instagram-source-section" aria-labelledby="instagram-sources-heading">
+      <div className="source-family-heading">
+        <h3 id="instagram-sources-heading">Instagram professional accounts</h3>
+        <span className="section-count">({metrics.length})</span>
+      </div>
+
+      {metrics.length ? (
+        <div className="instagram-source-list">
+          {metrics.map((metric) => (
+            <InstagramSourceRow
+              key={metric.source.user_source_id}
+              metric={metric}
+              returnTo={returnTo}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="muted source-family-empty">
+          No Instagram accounts yet. Add a profile handle to stage professional
+          account monitoring.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function InstagramSourceRow({
+  metric,
+  returnTo
+}: {
+  metric: SourceMetric;
+  returnTo: string;
+}) {
+  const handle =
+    getInstagramHandleFromMetadata(metric.source.metadata) ??
+    metric.name.replace(/^@/, "");
+
+  return (
+    <div className="instagram-source-row">
+      <div className="instagram-source-primary">
+        <a
+          className="source-name"
+          href={metric.source.source_url}
+          rel="noreferrer"
+          target="_blank"
+          title={metric.source.source_url}
+        >
+          @{handle}
+        </a>
+        <span className="source-meta">
+          <span className="status status-instagram">Instagram</span>
+          <span className={`status status-${metric.status}`}>
+            {formatStatus(metric.status)}
+          </span>
+          <span className="status status-validating">professional account</span>
+        </span>
+        <p className="muted instagram-source-note">
+          Account reference normalized. Ingestion is staged for the Instagram
+          professional account connection; posts are not scraped.
+        </p>
+      </div>
+      <div className="instagram-source-state">
+        <span className={`freshness freshness-${metric.freshness.state}`}>
+          {metric.freshness.label}
+        </span>
+        <SourceActions returnTo={returnTo} source={metric.source} />
+      </div>
+    </div>
+  );
+}
+
 function InactiveSourceRow({
   returnTo,
   source
@@ -340,10 +477,13 @@ function InactiveSourceRow({
   return (
     <div className="inactive-source-row">
       <div className="inactive-source-primary">
-        <span className="source-name" title={source.feed_url}>
+        <span className="source-name" title={getSourceReference(source)}>
           {getSourceName(source)}
         </span>
         <span className="source-meta">
+          <span className="status status-source-type">
+            {formatSourceType(source)}
+          </span>
           <span className={`status status-${source.user_source_status}`}>
             {formatStatus(source.user_source_status)}
           </span>
@@ -429,6 +569,22 @@ function SourceActionForm({
 
 function getSourceName(source: UserSource): string {
   return source.display_name || source.source_name || "Unknown source";
+}
+
+function getSourceReference(source: UserSource): string {
+  return source.feed_url ?? source.source_url;
+}
+
+function isWebFeedSource(source: UserSource): boolean {
+  return source.source_type === "rss" || source.source_type === "atom";
+}
+
+function formatSourceType(source: UserSource): string {
+  if (source.source_type === "instagram") {
+    return "Instagram";
+  }
+
+  return source.source_type.toUpperCase();
 }
 
 function parseSourceDiscovery(value: string | undefined): SourceDiscoveryState | null {
