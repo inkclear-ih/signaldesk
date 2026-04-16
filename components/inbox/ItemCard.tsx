@@ -13,6 +13,7 @@ import {
   formatDispositionAction,
   trimSummary
 } from "@/lib/inbox/formatting";
+import { InstagramMediaPreview } from "./InstagramMediaPreview";
 import type { ReactNode } from "react";
 import type { DispositionState, InboxItem, InboxView } from "@/lib/inbox/types";
 
@@ -34,6 +35,7 @@ export function ItemCard({
   const summary = trimSummary(cleanText(item.summary));
   const publishedDate = formatDate(item.published_at);
   const removalTarget = reviewed ? "Reviewed" : "Inbox";
+  const instagramMedia = getInstagramMedia(item);
 
   return (
     <article className={item.system_state === "new" ? "item item-new" : "item"}>
@@ -53,6 +55,12 @@ export function ItemCard({
         )}
       </div>
       {tags.length ? <Tags tags={tags} /> : <div className="tags" />}
+      {instagramMedia ? (
+        <InstagramMediaPreview
+          mediaType={instagramMedia.mediaType}
+          mediaUrl={instagramMedia.mediaUrl}
+        />
+      ) : null}
       {summary ? <p className="summary-text">{summary}</p> : null}
       <div className="item-status">
         <span className={item.system_state === "new" ? "badge" : "badge badge-known"}>
@@ -128,6 +136,28 @@ export function ItemCard({
   );
 }
 
+function getInstagramMedia(
+  item: InboxItem
+): { mediaType: string | null; mediaUrl: string | null } | null {
+  if (item.source_type !== "instagram") {
+    return null;
+  }
+
+  const payload = item.raw_payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { mediaType: null, mediaUrl: null };
+  }
+
+  return {
+    mediaType: getPayloadString(payload.media_type),
+    mediaUrl: getPayloadString(payload.media_url)
+  };
+}
+
+function getPayloadString(value: unknown): string | null {
+  return typeof value === "string" ? cleanText(value) : null;
+}
+
 function DispositionAction({
   activeView,
   disposition,
@@ -187,4 +217,3 @@ function ItemActionForm({
     </form>
   );
 }
-

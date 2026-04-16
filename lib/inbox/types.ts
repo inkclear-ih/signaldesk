@@ -31,9 +31,11 @@ export type SortDirection = "asc" | "desc";
 export type InboxItem = {
   id: string;
   source_id: string;
+  source_type: SourceType;
   title: string | null;
   link: string | null;
   summary: string | null;
+  raw_payload: Record<string, unknown> | null;
   published_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
