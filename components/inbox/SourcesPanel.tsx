@@ -63,8 +63,10 @@ export function SourcesPanel({
   const instagramMetrics = metrics.filter(
     (metric) => metric.source.source_type === "instagram"
   );
-  const scannableSourceCount = webFeedMetrics.filter(
-    (metric) => metric.source.source_status === "active"
+  const scannableSourceCount = metrics.filter(
+    (metric) =>
+      metric.source.source_status === "active" ||
+      metric.source.source_status === "validating"
   ).length;
   const sortedInactiveSources = [...inactiveSources].sort((a, b) =>
     getSourceName(a).localeCompare(getSourceName(b), undefined, {
@@ -117,8 +119,9 @@ export function SourcesPanel({
           <div className="source-family-copy">
             <h3>Instagram professional accounts</h3>
             <p className="muted">
-              Add creator or professional account profiles. Posting, DMs, and broad
-              social scraping are outside this source family.
+              Add creator or professional account profiles. Monitoring uses
+              Instagram Graph API discovery when configured; posting and DMs stay
+              out of scope.
             </p>
           </div>
           <form className="add-source-form" action={addInstagramSource}>
@@ -414,8 +417,8 @@ function InstagramSourcesSection({
         </div>
       ) : (
         <p className="muted source-family-empty">
-          No Instagram accounts yet. Add a profile handle to stage professional
-          account monitoring.
+          No Instagram accounts yet. Add a professional or creator profile handle
+          to monitor account posts.
         </p>
       )}
     </section>
@@ -432,6 +435,7 @@ function InstagramSourceRow({
   const handle =
     getInstagramHandleFromMetadata(metric.source.metadata) ??
     metric.name.replace(/^@/, "");
+  const error = metric.latestRunError || metric.source.last_error;
 
   return (
     <div className="instagram-source-row">
@@ -450,14 +454,21 @@ function InstagramSourceRow({
           <span className={`status status-${metric.status}`}>
             {formatStatus(metric.status)}
           </span>
-          <span className="status status-validating">professional account</span>
+          {metric.latestRunStatus ? (
+            <span className={`status status-${metric.latestRunStatus}`}>
+              run {formatStatus(metric.latestRunStatus)}
+            </span>
+          ) : null}
         </span>
         <p className="muted instagram-source-note">
-          Account reference normalized. Ingestion is staged for the Instagram
-          professional account connection; posts are not scraped.
+          Account posts flow through Instagram Graph API professional account
+          discovery when the account and workspace token allow access.
         </p>
+        {error ? <span className="source-error">Last error: {error}</span> : null}
       </div>
       <div className="instagram-source-state">
+        <span>{metric.fetchedCount ?? 0} fetched</span>
+        <span>{metric.newCount} new</span>
         <span className={`freshness freshness-${metric.freshness.state}`}>
           {metric.freshness.label}
         </span>

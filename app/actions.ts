@@ -384,7 +384,7 @@ export async function rescanSources(formData: FormData) {
     .from("current_user_sources")
     .select("source_id")
     .eq("user_source_status", "active")
-    .eq("source_status", "active");
+    .in("source_status", ["active", "validating"]);
 
   if (error) {
     finishSourceMutation(formData, {
@@ -688,7 +688,7 @@ function getInstagramSubscriptionSuccessMessage(
   existingSource: ExistingUserSource | null
 ): string {
   if (!existingSource) {
-    return `${name} added as an Instagram professional account source. Monitoring is staged for the Instagram account ingestion connection.`;
+    return `${name} added as an Instagram professional account source. It will be included in source scans when Instagram Graph API monitoring is configured.`;
   }
 
   if (existingSource.user_source_status === "active") {

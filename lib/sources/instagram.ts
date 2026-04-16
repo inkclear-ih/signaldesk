@@ -25,7 +25,7 @@ export type NormalizedInstagramAccount = {
     account_kind: "professional_or_creator";
     monitoring_scope: "account_posts";
     ingestion_adapter: "instagram_professional_account";
-    api_status: "pending_connection";
+    api_status: "pending_scan";
   };
 };
 
@@ -61,7 +61,7 @@ export function normalizeInstagramAccountInput(
       account_kind: "professional_or_creator",
       monitoring_scope: "account_posts",
       ingestion_adapter: "instagram_professional_account",
-      api_status: "pending_connection"
+      api_status: "pending_scan"
     }
   };
 }

@@ -1,7 +1,6 @@
 import { cleanText } from "@/lib/inbox/formatting";
 import {
-  INSTAGRAM_INGESTION_PENDING_MESSAGE,
-  InstagramIngestionPendingError,
+  InstagramGraphApiError,
   fetchInstagramProfessionalAccountPosts,
   normalizeInstagramMediaItem
 } from "@/lib/ingestion/instagram";
@@ -28,13 +27,14 @@ type ExistingItem = {
 };
 
 type NormalizedEntry = {
+  item_key?: string | null;
   title: string | null;
   link: string | null;
   summary: string | null;
   author: string | null;
   published_at: string | null;
   raw_guid: string | null;
-  raw_payload: Record<string, string | null>;
+  raw_payload: Record<string, unknown>;
 };
 
 export type SourceScanResult = {
@@ -80,7 +80,7 @@ export async function scanSources({
   const { data, error } = await supabase
     .from("sources")
     .select("id,type,name,feed_url,url,status,metadata")
-    .eq("status", "active")
+    .in("status", ["active", "validating"])
     .in("id", activeSourceIds)
     .order("name", { ascending: true });
 
@@ -136,7 +136,10 @@ async function scanSource(
   }
 ): Promise<SourceScanResult> {
   if (source.type === "instagram") {
-    return scanInstagramSource(supabase, source);
+    return scanInstagramSource(supabase, source, {
+      limitPerSource,
+      timeoutMs
+    });
   }
 
   if (!source.feed_url) {
@@ -190,47 +193,14 @@ async function scanSource(
 
     const xml = await readLimitedResponse(response);
     const entries = parseFeedEntries(xml, source).slice(0, limitPerSource);
-    const seenKeys = new Set<string>();
-    let fetchedCount = 0;
-    let newCount = 0;
-    let knownCount = 0;
-
-    for (const entry of entries) {
-      fetchedCount += 1;
-      const itemKey = computeItemKey({
-        sourceId: source.id,
-        title: entry.title,
-        link: entry.link
-      });
-
-      if (seenKeys.has(itemKey)) {
-        continue;
+    const { fetchedCount, knownCount, newCount } = await persistNormalizedEntries(
+      supabase,
+      {
+        entries,
+        runId: run.id,
+        sourceId: source.id
       }
-      seenKeys.add(itemKey);
-
-      const existing = await getExistingItem(supabase, source.id, itemKey);
-      const seenAt = new Date().toISOString();
-
-      if (existing) {
-        await updateExistingItem(supabase, {
-          itemId: existing.id,
-          normalized: entry,
-          runId: run.id,
-          seenAt,
-          seenCount: existing.seen_count + 1
-        });
-        knownCount += 1;
-      } else {
-        await insertNewItem(supabase, {
-          itemKey,
-          normalized: entry,
-          runId: run.id,
-          seenAt,
-          sourceId: source.id
-        });
-        newCount += 1;
-      }
-    }
+    );
 
     const finishedAt = new Date().toISOString();
     await supabase
@@ -296,7 +266,14 @@ async function scanSource(
 
 async function scanInstagramSource(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
-  source: SourceRow
+  source: SourceRow,
+  {
+    limitPerSource,
+    timeoutMs
+  }: {
+    limitPerSource: number;
+    timeoutMs: number;
+  }
 ): Promise<SourceScanResult> {
   const startedAt = new Date().toISOString();
   const { data: run, error: runError } = await supabase
@@ -318,7 +295,18 @@ async function scanInstagramSource(
   }
 
   try {
-    const posts = await fetchInstagramProfessionalAccountPosts();
+    const posts = await fetchInstagramProfessionalAccountPosts(
+      {
+        id: source.id,
+        name: source.name,
+        url: source.url,
+        metadata: source.metadata
+      },
+      {
+        limit: limitPerSource,
+        timeoutMs
+      }
+    );
     const entries = posts.map((post) =>
       normalizeInstagramMediaItem(
         {
@@ -330,6 +318,14 @@ async function scanInstagramSource(
         post
       )
     );
+    const { fetchedCount, knownCount, newCount } = await persistNormalizedEntries(
+      supabase,
+      {
+        entries,
+        runId: run.id,
+        sourceId: source.id
+      }
+    );
 
     const finishedAt = new Date().toISOString();
     await supabase
@@ -337,9 +333,9 @@ async function scanInstagramSource(
       .update({
         finished_at: finishedAt,
         status: "ok",
-        fetched_count: entries.length,
-        new_count: 0,
-        known_count: entries.length,
+        fetched_count: fetchedCount,
+        new_count: newCount,
+        known_count: knownCount,
         error_message: null,
         http_status: null
       })
@@ -348,8 +344,13 @@ async function scanInstagramSource(
     await supabase
       .from("sources")
       .update({
+        status: "active",
         last_fetched_at: finishedAt,
-        last_error: null
+        last_error: null,
+        metadata: mergeSourceMetadata(source.metadata, {
+          api_status: "connected",
+          last_ingestion_adapter: "instagram_graph_business_discovery"
+        })
       })
       .eq("id", source.id);
 
@@ -357,16 +358,13 @@ async function scanInstagramSource(
       sourceId: source.id,
       sourceName: source.name,
       status: "ok",
-      fetchedCount: entries.length,
-      newCount: 0,
-      knownCount: entries.length,
+      fetchedCount,
+      newCount,
+      knownCount,
       error: null
     };
   } catch (error) {
-    const message =
-      error instanceof InstagramIngestionPendingError
-        ? INSTAGRAM_INGESTION_PENDING_MESSAGE
-        : getErrorMessage(error);
+    const message = getErrorMessage(error);
     const finishedAt = new Date().toISOString();
 
     await supabase
@@ -375,14 +373,18 @@ async function scanInstagramSource(
         finished_at: finishedAt,
         status: "error",
         error_message: message,
-        http_status: null
+        http_status: error instanceof InstagramGraphApiError ? error.httpStatus : null
       })
       .eq("id", run.id);
     await supabase
       .from("sources")
       .update({
         last_fetched_at: finishedAt,
-        last_error: message
+        last_error: message,
+        metadata: mergeSourceMetadata(source.metadata, {
+          api_status: "error",
+          last_ingestion_adapter: "instagram_graph_business_discovery"
+        })
       })
       .eq("id", source.id);
 
@@ -396,6 +398,69 @@ async function scanInstagramSource(
       error: message
     };
   }
+}
+
+async function persistNormalizedEntries(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  {
+    entries,
+    runId,
+    sourceId
+  }: {
+    entries: NormalizedEntry[];
+    runId: string;
+    sourceId: string;
+  }
+): Promise<{
+  fetchedCount: number;
+  knownCount: number;
+  newCount: number;
+}> {
+  const seenKeys = new Set<string>();
+  let fetchedCount = 0;
+  let newCount = 0;
+  let knownCount = 0;
+
+  for (const entry of entries) {
+    fetchedCount += 1;
+    const itemKey =
+      textOrNull(entry.item_key ?? null) ??
+      computeItemKey({
+        sourceId,
+        title: entry.title,
+        link: entry.link
+      });
+
+    if (seenKeys.has(itemKey)) {
+      continue;
+    }
+    seenKeys.add(itemKey);
+
+    const existing = await getExistingItem(supabase, sourceId, itemKey);
+    const seenAt = new Date().toISOString();
+
+    if (existing) {
+      await updateExistingItem(supabase, {
+        itemId: existing.id,
+        normalized: entry,
+        runId,
+        seenAt,
+        seenCount: existing.seen_count + 1
+      });
+      knownCount += 1;
+    } else {
+      await insertNewItem(supabase, {
+        itemKey,
+        normalized: entry,
+        runId,
+        seenAt,
+        sourceId
+      });
+      newCount += 1;
+    }
+  }
+
+  return { fetchedCount, knownCount, newCount };
 }
 
 async function getExistingItem(
@@ -696,6 +761,16 @@ function normalizeTitle(value: string | null): string | null {
 function textOrNull(value: string | null): string | null {
   const text = value?.trim();
   return text || null;
+}
+
+function mergeSourceMetadata(
+  metadata: Record<string, unknown> | null,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...(metadata ?? {}),
+    ...patch
+  };
 }
 
 function getNumberEnv(name: string): number | null {
