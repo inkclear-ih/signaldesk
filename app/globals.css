@@ -636,10 +636,12 @@ video.instagram-media-asset {
   left: 8px;
   border: 1px solid rgba(236, 236, 236, 0.16);
   border-radius: var(--ui-radius-sm);
-  background: rgba(13, 13, 14, 0.72);
-  color: rgba(236, 236, 236, 0.86);
-  padding: 3px 6px;
+  background: rgba(13, 13, 14, 0.56);
+  color: rgba(236, 236, 236, 0.62);
+  padding: 2px 5px;
   backdrop-filter: blur(10px);
+  font-size: 0.66rem;
+  font-weight: 500;
 }
 
 .item-instagram-layout,

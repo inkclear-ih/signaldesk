@@ -16,6 +16,7 @@ export function InstagramMediaPreview({
   const label = getInstagramMediaLabel(kind);
   const source = getSafeRemoteUrl(mediaUrl);
   const canRenderMedia = Boolean(source) && !failed;
+  const showMediaLabel = kind === "carousel";
 
   return (
     <div className={`instagram-media instagram-media-${kind}`}>
@@ -46,7 +47,7 @@ export function InstagramMediaPreview({
           <strong>Preview unavailable</strong>
         </div>
       )}
-      <span className="instagram-media-label">{label}</span>
+      {showMediaLabel ? <span className="instagram-media-label">{label}</span> : null}
     </div>
   );
 }
