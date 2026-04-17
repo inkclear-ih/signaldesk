@@ -4,6 +4,7 @@ import {
   addFeedSource,
   addInstagramSource,
   archiveSourceSubscription,
+  disconnectInstagramConnection,
   discoverWebsiteFeeds,
   pauseSourceSubscription,
   rescanSources,
@@ -24,6 +25,7 @@ import type {
   SourceMetric,
   SourceSort,
   SourceSortKey,
+  UserInstagramConnection,
   UserSource
 } from "@/lib/inbox/types";
 import type { FeedDiscoveryCandidate } from "@/lib/sources/discovery";
@@ -37,6 +39,7 @@ export function SourcesPanel({
   activeView,
   filters,
   inactiveSources,
+  instagramConnection,
   itemSort,
   metrics,
   sourceError,
@@ -47,6 +50,7 @@ export function SourcesPanel({
   activeView: InboxView;
   filters: ItemFilters;
   inactiveSources: UserSource[];
+  instagramConnection: UserInstagramConnection | null;
   itemSort: ItemSort;
   metrics: SourceMetric[];
   sourceError?: string;
@@ -120,25 +124,31 @@ export function SourcesPanel({
             <h3>Instagram professional accounts</h3>
             <p className="muted">
               Add creator or professional account profiles. Monitoring uses
-              Instagram Graph API discovery when configured; posting and DMs stay
+              your connected Instagram professional account; posting and DMs stay
               out of scope.
             </p>
           </div>
-          <form className="add-source-form" action={addInstagramSource}>
-            <input type="hidden" name="returnTo" value={currentHref} />
-            <label className="filter-field">
-              <span>Add Instagram account</span>
-              <input
-                className="input"
-                name="instagramAccount"
-                placeholder="@studio or https://instagram.com/studio/"
-                required
-              />
-            </label>
-            <button className="button button-compact" type="submit">
-              Add account
-            </button>
-          </form>
+          <div className="instagram-source-tools">
+            <InstagramConnectionPanel
+              connection={instagramConnection}
+              returnTo={currentHref}
+            />
+            <form className="add-source-form" action={addInstagramSource}>
+              <input type="hidden" name="returnTo" value={currentHref} />
+              <label className="filter-field">
+                <span>Add Instagram account</span>
+                <input
+                  className="input"
+                  name="instagramAccount"
+                  placeholder="@studio or https://instagram.com/studio/"
+                  required
+                />
+              </label>
+              <button className="button button-compact" type="submit">
+                Add account
+              </button>
+            </form>
+          </div>
         </section>
       </div>
 
@@ -253,6 +263,71 @@ export function SourcesPanel({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function InstagramConnectionPanel({
+  connection,
+  returnTo
+}: {
+  connection: UserInstagramConnection | null;
+  returnTo: string;
+}) {
+  const connectHref = `/api/connections/instagram/start?returnTo=${encodeURIComponent(
+    returnTo
+  )}`;
+  const isExpired = isConnectionExpired(connection?.token_expires_at ?? null);
+  const isConnected = connection?.status === "connected" && !isExpired;
+  const needsReconnect =
+    connection?.status === "needs_reconnect" ||
+    (connection?.status === "connected" && isExpired);
+  const username =
+    connection?.connected_username ??
+    connection?.display_name?.replace(/^@/, "") ??
+    null;
+  const expiry = formatConnectionExpiry(connection?.token_expires_at ?? null);
+
+  return (
+    <div className="instagram-connection-panel">
+      <div className="instagram-connection-copy">
+        <span
+          className={`status status-${
+            isConnected ? "active" : needsReconnect ? "error" : "paused"
+          }`}
+        >
+          {isConnected
+            ? "Connected"
+            : needsReconnect
+              ? "Reconnect needed"
+              : "Not connected"}
+        </span>
+        <p className="muted">
+          {isConnected
+            ? `Using ${username ? `@${username}` : "your connected account"}${
+                expiry ? ` until ${expiry}` : ""
+              }.`
+            : needsReconnect
+              ? "Reconnect Instagram before scanning professional account sources."
+              : "Connect a Meta account that manages an Instagram professional account."}
+        </p>
+        {connection?.refresh_error ? (
+          <span className="source-error">{connection.refresh_error}</span>
+        ) : null}
+      </div>
+      <div className="instagram-connection-actions">
+        <a className="button button-compact" href={connectHref}>
+          {isConnected ? "Reconnect" : "Connect Instagram"}
+        </a>
+        {connection && connection.status !== "disconnected" ? (
+          <form action={disconnectInstagramConnection}>
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <button className="item-action" type="submit">
+              Disconnect
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -596,6 +671,32 @@ function formatSourceType(source: UserSource): string {
   }
 
   return source.source_type.toUpperCase();
+}
+
+function formatConnectionExpiry(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toLocaleDateString("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function isConnectionExpired(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+  return !Number.isNaN(timestamp) && timestamp <= Date.now();
 }
 
 function parseSourceDiscovery(value: string | undefined): SourceDiscoveryState | null {

@@ -4,6 +4,7 @@ import {
   fetchInstagramProfessionalAccountPosts,
   normalizeInstagramMediaItem
 } from "@/lib/ingestion/instagram";
+import { resolveInstagramCredentialForSource } from "@/lib/instagram/connections";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const DEFAULT_LIMIT_PER_SOURCE = 25;
@@ -58,11 +59,13 @@ export type SourceScanSummary = {
 };
 
 export async function scanSources({
+  ownerUserId,
   sourceIds,
   limitPerSource = getNumberEnv("SIGNALDESK_SCAN_LIMIT_PER_SOURCE") ??
     DEFAULT_LIMIT_PER_SOURCE,
   timeoutMs = getNumberEnv("SIGNALDESK_SCAN_TIMEOUT_MS") ?? DEFAULT_TIMEOUT_MS
 }: {
+  ownerUserId?: string;
   sourceIds?: string[];
   limitPerSource?: number;
   timeoutMs?: number;
@@ -95,6 +98,7 @@ export async function scanSources({
     results.push(
       await scanSource(supabase, source, {
         limitPerSource,
+        ownerUserId,
         timeoutMs
       })
     );
@@ -129,14 +133,17 @@ async function scanSource(
   source: SourceRow,
   {
     limitPerSource,
+    ownerUserId,
     timeoutMs
   }: {
     limitPerSource: number;
+    ownerUserId?: string;
     timeoutMs: number;
   }
 ): Promise<SourceScanResult> {
   if (source.type === "instagram") {
     return scanInstagramSource(supabase, source, {
+      ownerUserId,
       timeoutMs
     });
   }
@@ -267,8 +274,10 @@ async function scanInstagramSource(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   source: SourceRow,
   {
+    ownerUserId,
     timeoutMs
   }: {
+    ownerUserId?: string;
     timeoutMs: number;
   }
 ): Promise<SourceScanResult> {
@@ -292,6 +301,10 @@ async function scanInstagramSource(
   }
 
   try {
+    const credential = await resolveInstagramCredentialForSource(supabase, {
+      preferredUserId: ownerUserId,
+      sourceId: source.id
+    });
     const posts = await fetchInstagramProfessionalAccountPosts(
       {
         id: source.id,
@@ -300,6 +313,7 @@ async function scanInstagramSource(
         metadata: source.metadata
       },
       {
+        credential,
         timeoutMs
       }
     );

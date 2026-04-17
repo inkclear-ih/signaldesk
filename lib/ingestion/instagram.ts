@@ -1,8 +1,9 @@
 import { cleanText } from "@/lib/inbox/formatting";
+import type { InstagramCredential } from "@/lib/instagram/connections";
 import { getInstagramHandleFromMetadata } from "@/lib/sources/instagram";
 
 export const INSTAGRAM_CONFIG_REQUIRED_MESSAGE =
-  "Instagram monitoring requires Instagram Graph API configuration. Set INSTAGRAM_GRAPH_ACCESS_TOKEN and INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID.";
+  "Instagram monitoring requires a connected Instagram professional account. Connect Instagram in Signaldesk, or set INSTAGRAM_GRAPH_ACCESS_TOKEN and INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID for the legacy dev fallback.";
 export const INSTAGRAM_UNSUPPORTED_SOURCE_MESSAGE =
   "Instagram did not return media for this account. It may be private, unavailable, personal, or outside Instagram professional account discovery access.";
 
@@ -109,8 +110,10 @@ type InstagramBusinessDiscoveryResponse = {
 export async function fetchInstagramProfessionalAccountPosts(
   source: InstagramSourceForIngestion,
   {
+    credential,
     timeoutMs
   }: {
+    credential?: InstagramCredential;
     timeoutMs: number;
   }
 ): Promise<InstagramRawMediaItem[]> {
@@ -121,8 +124,11 @@ export async function fetchInstagramProfessionalAccountPosts(
     );
   }
 
-  const accessToken = process.env.INSTAGRAM_GRAPH_ACCESS_TOKEN;
-  const businessAccountId = process.env.INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID;
+  const accessToken =
+    credential?.accessToken ?? process.env.INSTAGRAM_GRAPH_ACCESS_TOKEN;
+  const businessAccountId =
+    credential?.businessAccountId ??
+    process.env.INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID;
   if (!accessToken || !businessAccountId) {
     throw new InstagramConfigurationError();
   }
@@ -141,7 +147,8 @@ export async function fetchInstagramProfessionalAccountPosts(
     endpoint: endpointPath,
     fields,
     target_username: handle,
-    base_ig_user_id: businessAccountId
+    base_ig_user_id: businessAccountId,
+    credential_source: credential?.source ?? "env_fallback"
   };
 
   const response = await fetch(url, {
@@ -242,6 +249,7 @@ function getInstagramGraphErrorMessage(
     fields: string;
     target_username: string;
     base_ig_user_id: string;
+    credential_source: string;
   }
 ): string {
   const error =
@@ -269,6 +277,7 @@ function logInstagramGraphFailure({
     fields: string;
     target_username: string;
     base_ig_user_id: string;
+    credential_source: string;
   };
 }) {
   console.warn(

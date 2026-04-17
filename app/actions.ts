@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { scanSources, type SourceScanSummary } from "@/lib/ingestion/scan";
 import {
   FeedValidationError,
@@ -379,7 +380,7 @@ export async function discoverWebsiteFeeds(formData: FormData) {
 }
 
 export async function rescanSources(formData: FormData) {
-  const { supabase } = await getAuthenticatedContext();
+  const { supabase, userId } = await getAuthenticatedContext();
   const { data, error } = await supabase
     .from("current_user_sources")
     .select("source_id")
@@ -410,7 +411,7 @@ export async function rescanSources(formData: FormData) {
 
   let summary: SourceScanSummary;
   try {
-    summary = await scanSources({ sourceIds });
+    summary = await scanSources({ ownerUserId: userId, sourceIds });
   } catch (scanError) {
     finishSourceMutation(formData, {
       type: "error",
@@ -419,6 +420,39 @@ export async function rescanSources(formData: FormData) {
   }
 
   finishSourceMutation(formData, getScanFeedback(summary));
+}
+
+export async function disconnectInstagramConnection(formData: FormData) {
+  const { userId } = await getAuthenticatedContext();
+  const admin = createSupabaseAdminClient();
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("user_provider_connections")
+    .update({
+      status: "disconnected",
+      access_token: null,
+      refresh_token: null,
+      token_expires_at: null,
+      refresh_expires_at: null,
+      next_refresh_at: null,
+      refresh_attempted_at: null,
+      refresh_error: null,
+      disconnected_at: now
+    })
+    .eq("user_id", userId)
+    .eq("provider", "meta_instagram");
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not disconnect Instagram."
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: "Instagram disconnected."
+  });
 }
 
 export async function pauseSourceSubscription(formData: FormData) {
@@ -688,7 +722,7 @@ function getInstagramSubscriptionSuccessMessage(
   existingSource: ExistingUserSource | null
 ): string {
   if (!existingSource) {
-    return `${name} added as an Instagram professional account source. It will be included in source scans when Instagram Graph API monitoring is configured.`;
+    return `${name} added as an Instagram professional account source. It will be included in scans when Instagram is connected.`;
   }
 
   if (existingSource.user_source_status === "active") {

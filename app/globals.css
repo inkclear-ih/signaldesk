@@ -871,6 +871,39 @@ video.instagram-media-asset {
   align-items: start;
 }
 
+.instagram-source-tools {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.instagram-connection-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-3);
+  align-items: center;
+  border: 1px solid var(--ui-border-faint);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-subtle);
+  padding: var(--ui-space-2);
+}
+
+.instagram-connection-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.instagram-connection-copy .muted {
+  font-size: var(--ui-font-size-meta);
+}
+
+.instagram-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .advanced-source-form {
   margin-bottom: var(--ui-space-3);
   padding-bottom: var(--ui-space-3);
@@ -1292,6 +1325,7 @@ video.instagram-media-asset {
 
   .source-summary,
   .source-family-section,
+  .instagram-connection-panel,
   .add-source-form,
   .feed-url-form,
   .metric-strip {
@@ -1333,5 +1367,9 @@ video.instagram-media-asset {
 
   .instagram-source-state {
     justify-items: start;
+  }
+
+  .instagram-connection-actions {
+    justify-content: flex-start;
   }
 }

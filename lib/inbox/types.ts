@@ -68,6 +68,24 @@ export type UserSource = {
   last_error: string | null;
 };
 
+export type UserInstagramConnection = {
+  id: string;
+  source_family: "instagram";
+  provider: "meta_instagram";
+  status: "connected" | "needs_reconnect" | "disconnected";
+  token_expires_at: string | null;
+  next_refresh_at: string | null;
+  refresh_attempted_at: string | null;
+  refresh_error: string | null;
+  instagram_business_account_id: string | null;
+  connected_username: string | null;
+  display_name: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  disconnected_at: string | null;
+};
+
 export type MetricItem = Pick<
   InboxItem,
   | "id"

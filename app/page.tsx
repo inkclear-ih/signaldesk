@@ -20,6 +20,7 @@ import type {
   ItemsByView,
   MetricItem,
   SearchParams,
+  UserInstagramConnection,
   UserSource
 } from "@/lib/inbox/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -55,6 +56,7 @@ export default async function Home({
     { data: hiddenItems },
     { data: reviewedItems },
     { data: sources },
+    { data: instagramConnection },
     { data: metricItems },
     { count: totalItemCount },
     { count: newItemCount },
@@ -117,6 +119,12 @@ export default async function Home({
       .from("current_user_sources")
       .select("*")
       .order("source_name", { ascending: true }),
+    supabase
+      .from("current_user_instagram_connections")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase
       .from("current_user_items")
       .select(
@@ -238,6 +246,9 @@ export default async function Home({
         activeView={activeView}
         filters={filters}
         inactiveSources={inactiveSources}
+        instagramConnection={
+          (instagramConnection as UserInstagramConnection | null) ?? null
+        }
         itemSort={itemSort}
         metrics={sourceMetrics}
         sourceError={searchParams?.sourceError}
