@@ -642,6 +642,9 @@ video.instagram-media-asset {
   backdrop-filter: blur(10px);
   font-size: 0.66rem;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-instagram-layout,

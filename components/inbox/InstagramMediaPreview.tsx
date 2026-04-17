@@ -76,7 +76,7 @@ function getInstagramMediaLabel(kind: InstagramMediaKind): string {
   }
 
   if (kind === "carousel") {
-    return "Instagram carousel cover";
+    return "Carousel cover";
   }
 
   if (kind === "image") {
