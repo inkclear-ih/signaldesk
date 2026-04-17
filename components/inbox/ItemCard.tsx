@@ -36,9 +36,15 @@ export function ItemCard({
   const publishedDate = formatDate(item.published_at);
   const removalTarget = reviewed ? "Reviewed" : "Inbox";
   const instagramMedia = getInstagramMedia(item);
-
-  return (
-    <article className={item.system_state === "new" ? "item item-new" : "item"}>
+  const itemClassName = [
+    "item",
+    item.system_state === "new" ? "item-new" : null,
+    instagramMedia ? "item-instagram" : null
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const cardContent = (
+    <>
       <div className="item-source">{item.source_name}</div>
       {item.link ? (
         <a className="item-title" href={item.link} rel="noreferrer" target="_blank">
@@ -55,12 +61,6 @@ export function ItemCard({
         )}
       </div>
       {tags.length ? <Tags tags={tags} /> : <div className="tags" />}
-      {instagramMedia ? (
-        <InstagramMediaPreview
-          mediaType={instagramMedia.mediaType}
-          mediaUrl={instagramMedia.mediaUrl}
-        />
-      ) : null}
       {summary ? <p className="summary-text">{summary}</p> : null}
       <div className="item-status">
         <span className={item.system_state === "new" ? "badge" : "badge badge-known"}>
@@ -132,6 +132,24 @@ export function ItemCard({
           </>
         )}
       </div>
+    </>
+  );
+
+  return (
+    <article className={itemClassName}>
+      {instagramMedia ? (
+        <div className="item-instagram-layout">
+          <div className="item-instagram-media">
+            <InstagramMediaPreview
+              mediaType={instagramMedia.mediaType}
+              mediaUrl={instagramMedia.mediaUrl}
+            />
+          </div>
+          <div className="item-instagram-content">{cardContent}</div>
+        </div>
+      ) : (
+        cardContent
+      )}
     </article>
   );
 }

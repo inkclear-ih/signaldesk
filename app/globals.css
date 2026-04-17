@@ -642,6 +642,24 @@ video.instagram-media-asset {
   backdrop-filter: blur(10px);
 }
 
+.item-instagram-layout,
+.item-instagram-content {
+  display: grid;
+  min-width: 0;
+}
+
+.item-instagram-layout {
+  gap: var(--ui-space-3);
+}
+
+.item-instagram .instagram-media {
+  width: 100%;
+  min-height: 0;
+  max-height: none;
+  margin-top: 0;
+  aspect-ratio: 1;
+}
+
 .summary-text {
   margin-top: 11px;
   color: rgba(236, 236, 236, 0.78);
@@ -1282,6 +1300,14 @@ video.instagram-media-asset {
 
   .item-sections-single {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 700px) {
+  .item-instagram-layout {
+    grid-template-columns: clamp(132px, 28%, 184px) minmax(0, 1fr);
+    gap: var(--ui-space-4);
+    align-items: start;
   }
 }
 
