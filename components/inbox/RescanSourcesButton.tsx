@@ -2,7 +2,15 @@
 
 import { useFormStatus } from "react-dom";
 
-export function RescanSourcesButton({ disabled }: { disabled: boolean }) {
+export function RescanSourcesButton({
+  disabled,
+  label = "Rescan sources",
+  pendingLabel = "Scanning..."
+}: {
+  disabled: boolean;
+  label?: string;
+  pendingLabel?: string;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -11,7 +19,7 @@ export function RescanSourcesButton({ disabled }: { disabled: boolean }) {
       disabled={disabled || pending}
       type="submit"
     >
-      {pending ? "Scanning..." : "Rescan sources"}
+      {pending ? pendingLabel : label}
     </button>
   );
 }

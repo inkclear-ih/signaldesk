@@ -1055,10 +1055,19 @@ video.instagram-media-asset {
 }
 
 .source-family-heading {
-  display: inline-flex;
+  display: flex;
   gap: var(--ui-space-2);
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: var(--ui-space-2);
+}
+
+.source-family-rescan {
+  flex: 0 0 auto;
+}
+
+.source-family-rescan .button {
+  white-space: nowrap;
 }
 
 .source-family-empty {
@@ -1364,6 +1373,11 @@ video.instagram-media-asset {
   }
 
   .section-header-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .source-family-heading {
     align-items: stretch;
     flex-direction: column;
   }

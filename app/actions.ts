@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { scanSources, type SourceScanSummary } from "@/lib/ingestion/scan";
+import {
+  getSourceTypesForScanScope,
+  scanSources,
+  type SourceScanScope,
+  type SourceScanSummary
+} from "@/lib/ingestion/scan";
 import {
   FeedValidationError,
   validateFeedUrl,
@@ -23,6 +28,10 @@ import {
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
+type ActiveSourceForScan = {
+  source_id: string | null;
+  source_type: string | null;
+};
 type StoredItemState = {
   review_state: "reviewed" | null;
   disposition_state: DispositionState;
@@ -381,22 +390,30 @@ export async function discoverWebsiteFeeds(formData: FormData) {
 
 export async function rescanSources(formData: FormData) {
   const { supabase, userId } = await getAuthenticatedContext();
-  const { data, error } = await supabase
+  const scope = getSourceScanScope(formData);
+  const sourceTypes = scope ? getSourceTypesForScanScope(scope) : null;
+  let query = supabase
     .from("current_user_sources")
-    .select("source_id")
+    .select("source_id,source_type")
     .eq("user_source_status", "active")
     .in("source_status", ["active", "validating"]);
+
+  if (sourceTypes) {
+    query = query.in("source_type", sourceTypes);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     finishSourceMutation(formData, {
       type: "error",
-      message: "Could not load active sources to scan."
+      message: `Could not load ${getActiveScanScopeLabel(scope)} to scan.`
     });
   }
 
   const sourceIds = [
     ...new Set(
-      (data ?? [])
+      ((data ?? []) as ActiveSourceForScan[])
         .map((source) => String(source.source_id ?? ""))
         .filter((sourceId) => sourceId.length > 0)
     )
@@ -405,21 +422,23 @@ export async function rescanSources(formData: FormData) {
   if (!sourceIds.length) {
     finishSourceMutation(formData, {
       type: "message",
-      message: "No active sources to scan."
+      message: `No ${getActiveScanScopeLabel(scope)} to scan.`
     });
   }
 
   let summary: SourceScanSummary;
   try {
-    summary = await scanSources({ ownerUserId: userId, sourceIds });
+    summary = await scanSources({ ownerUserId: userId, sourceIds, scope });
   } catch (scanError) {
     finishSourceMutation(formData, {
       type: "error",
-      message: `Source scan failed: ${getErrorMessage(scanError)}`
+      message: `${getScanScopeTitle(scope)} scan failed: ${getErrorMessage(
+        scanError
+      )}`
     });
   }
 
-  finishSourceMutation(formData, getScanFeedback(summary));
+  finishSourceMutation(formData, getScanFeedback(summary, scope));
 }
 
 export async function disconnectInstagramConnection(formData: FormData) {
@@ -801,10 +820,43 @@ function isLocalDebug(): boolean {
   );
 }
 
-function getScanFeedback(summary: SourceScanSummary): {
+function getSourceScanScope(formData: FormData): SourceScanScope | undefined {
+  const scope = String(formData.get("scanScope") ?? "");
+  return scope === "instagram" || scope === "web_feed" ? scope : undefined;
+}
+
+function getActiveScanScopeLabel(scope: SourceScanScope | undefined): string {
+  if (scope === "instagram") {
+    return "active Instagram sources";
+  }
+
+  if (scope === "web_feed") {
+    return "active web/feed sources";
+  }
+
+  return "active sources";
+}
+
+function getScanScopeTitle(scope: SourceScanScope | undefined): string {
+  if (scope === "instagram") {
+    return "Instagram source";
+  }
+
+  if (scope === "web_feed") {
+    return "Web/feed source";
+  }
+
+  return "Source";
+}
+
+function getScanFeedback(
+  summary: SourceScanSummary,
+  scope: SourceScanScope | undefined
+): {
   type: "message" | "error";
   message: string;
 } {
+  const scanLabel = getScanScopeTitle(scope);
   const processed = `${summary.sourceCount} ${pluralize(
     summary.sourceCount,
     "source",
@@ -817,19 +869,26 @@ function getScanFeedback(summary: SourceScanSummary): {
   const counts = `${summary.newCount} new, ${summary.knownCount} known`;
 
   if (summary.errorCount > 0) {
+    const firstError = summary.results.find(
+      (result) => result.status === "error" && result.error
+    );
+    const errorDetail = firstError
+      ? ` First error: ${firstError.sourceName}: ${firstError.error}`
+      : "";
+
     return {
       type: "error",
-      message: `Scan finished with ${summary.errorCount} ${pluralize(
+      message: `${scanLabel} scan finished with ${summary.errorCount} ${pluralize(
         summary.errorCount,
         "error",
         "errors"
-      )}: ${processed} processed (${counts}).`
+      )}: ${processed} processed (${counts}).${errorDetail}`
     };
   }
 
   return {
     type: "message",
-    message: `Scan complete: ${processed} processed (${counts}).`
+    message: `${scanLabel} scan complete: ${processed} processed (${counts}).`
   };
 }
 

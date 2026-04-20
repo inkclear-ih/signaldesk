@@ -38,6 +38,9 @@ type NormalizedEntry = {
   raw_payload: Record<string, unknown>;
 };
 
+export type SourceScanScope = "instagram" | "web_feed";
+export type SourceType = SourceRow["type"];
+
 export type SourceScanResult = {
   sourceId: string;
   sourceName: string;
@@ -58,34 +61,52 @@ export type SourceScanSummary = {
   results: SourceScanResult[];
 };
 
+const SOURCE_TYPES_BY_SCOPE = {
+  instagram: ["instagram"],
+  web_feed: ["rss", "atom"]
+} satisfies Record<SourceScanScope, SourceType[]>;
+
+export function getSourceTypesForScanScope(scope: SourceScanScope): SourceType[] {
+  return SOURCE_TYPES_BY_SCOPE[scope];
+}
+
 export async function scanSources({
   ownerUserId,
   sourceIds,
+  scope,
   limitPerSource = getNumberEnv("SIGNALDESK_SCAN_LIMIT_PER_SOURCE") ??
     DEFAULT_LIMIT_PER_SOURCE,
   timeoutMs = getNumberEnv("SIGNALDESK_SCAN_TIMEOUT_MS") ?? DEFAULT_TIMEOUT_MS
 }: {
   ownerUserId?: string;
   sourceIds?: string[];
+  scope?: SourceScanScope;
   limitPerSource?: number;
   timeoutMs?: number;
 } = {}): Promise<SourceScanSummary> {
   const supabase = createSupabaseAdminClient();
+  const sourceTypes = scope ? SOURCE_TYPES_BY_SCOPE[scope] : null;
   const activeSourceIds =
     sourceIds && sourceIds.length
       ? [...new Set(sourceIds)]
-      : await getActiveSubscribedSourceIds(supabase);
+      : await getActiveSubscribedSourceIds(supabase, sourceTypes);
 
   if (!activeSourceIds.length) {
     return emptySummary();
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("sources")
     .select("id,type,name,feed_url,url,status,metadata")
     .in("status", ["active", "validating"])
     .in("id", activeSourceIds)
     .order("name", { ascending: true });
+
+  if (sourceTypes) {
+    query = query.in("type", sourceTypes);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Could not load active sources: ${error.message}`);
@@ -108,17 +129,38 @@ export async function scanSources({
 }
 
 async function getActiveSubscribedSourceIds(
-  supabase: ReturnType<typeof createSupabaseAdminClient>
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  sourceTypes: SourceType[] | null = null
 ): Promise<string[]> {
-  const { data, error } = await supabase
+  if (!sourceTypes) {
+    const { data, error } = await supabase
+      .from("user_sources")
+      .select("source_id")
+      .eq("status", "active");
+
+    if (error) {
+      throw new Error(`Could not load active subscriptions: ${error.message}`);
+    }
+
+    return getUniqueSourceIds(data);
+  }
+
+  const query = supabase
     .from("user_sources")
-    .select("source_id")
-    .eq("status", "active");
+    .select("source_id, sources!inner(type)")
+    .eq("status", "active")
+    .in("sources.type", sourceTypes);
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Could not load active subscriptions: ${error.message}`);
   }
 
+  return getUniqueSourceIds(data);
+}
+
+function getUniqueSourceIds(data: { source_id: unknown }[] | null): string[] {
   return [
     ...new Set(
       (data ?? [])

@@ -29,6 +29,7 @@ import type {
   UserSource
 } from "@/lib/inbox/types";
 import type { FeedDiscoveryCandidate } from "@/lib/sources/discovery";
+import type { SourceScanScope } from "@/lib/ingestion/scan";
 
 type SourceDiscoveryState = {
   pageUrl: string;
@@ -67,11 +68,10 @@ export function SourcesPanel({
   const instagramMetrics = metrics.filter(
     (metric) => metric.source.source_type === "instagram"
   );
-  const scannableSourceCount = metrics.filter(
-    (metric) =>
-      metric.source.source_status === "active" ||
-      metric.source.source_status === "validating"
-  ).length;
+  const scannableSourceCount = getScannableMetricCount(metrics);
+  const scannableWebFeedSourceCount = getScannableMetricCount(webFeedMetrics);
+  const scannableInstagramSourceCount =
+    getScannableMetricCount(instagramMetrics);
   const sortedInactiveSources = [...inactiveSources].sort((a, b) =>
     getSourceName(a).localeCompare(getSourceName(b), undefined, {
       numeric: true,
@@ -196,8 +196,16 @@ export function SourcesPanel({
       </div>
 
       <div className="source-family-heading">
-        <h3>Web/feed sources</h3>
-        <span className="section-count">({webFeedMetrics.length})</span>
+        <div className="section-title">
+          <h3>Web/feed sources</h3>
+          <span className="section-count">({webFeedMetrics.length})</span>
+        </div>
+        <RescanScopeForm
+          disabled={scannableWebFeedSourceCount === 0}
+          label="Rescan Web/Feeds"
+          returnTo={currentHref}
+          scope="web_feed"
+        />
       </div>
 
       {webFeedMetrics.length ? (
@@ -244,6 +252,7 @@ export function SourcesPanel({
       )}
 
       <InstagramSourcesSection
+        scannableSourceCount={scannableInstagramSourceCount}
         metrics={instagramMetrics}
         returnTo={currentHref}
       />
@@ -468,16 +477,26 @@ function SourceRow({
 
 function InstagramSourcesSection({
   metrics,
-  returnTo
+  returnTo,
+  scannableSourceCount
 }: {
   metrics: SourceMetric[];
   returnTo: string;
+  scannableSourceCount: number;
 }) {
   return (
     <section className="instagram-source-section" aria-labelledby="instagram-sources-heading">
       <div className="source-family-heading">
-        <h3 id="instagram-sources-heading">Instagram professional accounts</h3>
-        <span className="section-count">({metrics.length})</span>
+        <div className="section-title">
+          <h3 id="instagram-sources-heading">Instagram professional accounts</h3>
+          <span className="section-count">({metrics.length})</span>
+        </div>
+        <RescanScopeForm
+          disabled={scannableSourceCount === 0}
+          label="Rescan Instagram"
+          returnTo={returnTo}
+          scope="instagram"
+        />
       </div>
 
       {metrics.length ? (
@@ -497,6 +516,30 @@ function InstagramSourcesSection({
         </p>
       )}
     </section>
+  );
+}
+
+function RescanScopeForm({
+  disabled,
+  label,
+  returnTo,
+  scope
+}: {
+  disabled: boolean;
+  label: string;
+  returnTo: string;
+  scope: SourceScanScope;
+}) {
+  return (
+    <form className="rescan-form source-family-rescan" action={rescanSources}>
+      <input type="hidden" name="returnTo" value={returnTo} />
+      <input type="hidden" name="scanScope" value={scope} />
+      <RescanSourcesButton
+        disabled={disabled}
+        label={label}
+        pendingLabel="Scanning..."
+      />
+    </form>
   );
 }
 
@@ -663,6 +706,14 @@ function getSourceReference(source: UserSource): string {
 
 function isWebFeedSource(source: UserSource): boolean {
   return source.source_type === "rss" || source.source_type === "atom";
+}
+
+function getScannableMetricCount(metrics: SourceMetric[]): number {
+  return metrics.filter(
+    (metric) =>
+      metric.source.source_status === "active" ||
+      metric.source.source_status === "validating"
+  ).length;
 }
 
 function formatSourceType(source: UserSource): string {
