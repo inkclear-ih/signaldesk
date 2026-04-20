@@ -1,12 +1,18 @@
 const DEFAULT_INSTAGRAM_GRAPH_API_VERSION = "v24.0";
 const DEFAULT_INSTAGRAM_GRAPH_HOST = "https://graph.facebook.com";
 const DEFAULT_META_OAUTH_HOST = "https://www.facebook.com";
+const DEFAULT_META_INSTAGRAM_REDIRECT_ORIGIN =
+  "https://signaldesk-kappa.vercel.app";
 const DEFAULT_META_SCOPES = [
   "instagram_basic",
   "pages_show_list",
-  "pages_read_engagement",
-  "business_management"
+  "pages_read_engagement"
 ];
+const META_INSTAGRAM_BUSINESS_LOGIN_EXTRAS = {
+  setup: {
+    channel: "IG_API_ONBOARDING"
+  }
+};
 const REFRESH_BEFORE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const META_INSTAGRAM_PROVIDER = "meta_instagram";
@@ -99,7 +105,7 @@ export function getMetaInstagramAppConfig(origin: string): MetaInstagramAppConfi
     appSecret,
     redirectUri:
       process.env.META_INSTAGRAM_REDIRECT_URI ??
-      `${origin.replace(/\/$/, "")}/api/connections/instagram/callback`,
+      `${getPublicRedirectOrigin(origin)}/connections/instagram/complete`,
     graphHost:
       process.env.INSTAGRAM_GRAPH_HOST ?? DEFAULT_INSTAGRAM_GRAPH_HOST,
     oauthHost: process.env.META_OAUTH_HOST ?? DEFAULT_META_OAUTH_HOST,
@@ -143,10 +149,15 @@ export function buildMetaInstagramOAuthUrl(
     `${config.oauthHost.replace(/\/$/, "")}/dialog/oauth`
   );
   url.searchParams.set("client_id", config.appId);
+  url.searchParams.set("display", "page");
+  url.searchParams.set(
+    "extras",
+    JSON.stringify(META_INSTAGRAM_BUSINESS_LOGIN_EXTRAS)
+  );
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("state", state);
   url.searchParams.set("scope", config.scopes.join(","));
-  url.searchParams.set("response_type", "code");
+  url.searchParams.set("response_type", "token");
   return url.toString();
 }
 
@@ -341,6 +352,27 @@ function getConfiguredScopes(): string[] {
     .map((scope) => scope.trim())
     .filter(Boolean);
   return scopes.length ? scopes : DEFAULT_META_SCOPES;
+}
+
+function getPublicRedirectOrigin(origin: string): string {
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configuredSiteUrl) {
+    return configuredSiteUrl.replace(/\/$/, "");
+  }
+
+  const productionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (productionUrl) {
+    return `https://${productionUrl
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "")}`;
+  }
+
+  const normalizedOrigin = origin.replace(/\/$/, "");
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalizedOrigin)) {
+    return DEFAULT_META_INSTAGRAM_REDIRECT_ORIGIN;
+  }
+
+  return normalizedOrigin;
 }
 
 function getMetaGraphErrorMessage(
