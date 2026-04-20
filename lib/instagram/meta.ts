@@ -44,6 +44,18 @@ export type MetaInstagramAccount = {
   pageName: string | null;
 };
 
+export type MetaInstagramAccountDiscoveryDebug = {
+  pageCount: number;
+  validAccountCount: number;
+  pages: Array<{
+    pageId: string | null;
+    pageName: string | null;
+    hasInstagramBusinessAccount: boolean;
+    instagramBusinessAccountId: string | null;
+    username: string | null;
+  }>;
+};
+
 type MetaTokenResponse = {
   access_token?: string;
   token_type?: string;
@@ -202,10 +214,12 @@ export async function exchangeForLongLivedToken({
 
 export async function getConnectedInstagramAccounts({
   accessToken,
-  config
+  config,
+  onDiscoveryDebug
 }: {
   accessToken: string;
   config: Pick<MetaInstagramAppConfig, "graphHost" | "graphVersion">;
+  onDiscoveryDebug?: (debug: MetaInstagramAccountDiscoveryDebug) => void;
 }): Promise<MetaInstagramAccount[]> {
   const url = graphUrl(config, "/me/accounts");
   url.searchParams.set(
@@ -224,7 +238,8 @@ export async function getConnectedInstagramAccounts({
     "Instagram account discovery"
   );
 
-  return (payload.data ?? [])
+  const pages = payload.data ?? [];
+  const accounts = pages
     .map((page) => {
       const account = page.instagram_business_account;
       if (!page.id || !account?.id) {
@@ -241,6 +256,29 @@ export async function getConnectedInstagramAccounts({
       };
     })
     .filter((account): account is MetaInstagramAccount => Boolean(account));
+
+  const discoveryDebug: MetaInstagramAccountDiscoveryDebug = {
+    pageCount: pages.length,
+    validAccountCount: accounts.length,
+    pages: pages.map((page) => {
+      const account = page.instagram_business_account;
+      return {
+        pageId: page.id ?? null,
+        pageName: page.name ?? null,
+        hasInstagramBusinessAccount: Boolean(account),
+        instagramBusinessAccountId: account?.id ?? null,
+        username: account?.username ?? null
+      };
+    })
+  };
+
+  console.info(
+    "[instagram] Meta account discovery",
+    JSON.stringify(discoveryDebug)
+  );
+  onDiscoveryDebug?.(discoveryDebug);
+
+  return accounts;
 }
 
 export function computeNextInstagramRefreshAt(

@@ -4,6 +4,7 @@ import {
   INSTAGRAM_SOURCE_FAMILY,
   META_INSTAGRAM_PROVIDER,
   MetaInstagramApiError,
+  type MetaInstagramAccountDiscoveryDebug,
   MetaInstagramConfigurationError,
   computeNextInstagramRefreshAt,
   getConnectedInstagramAccounts,
@@ -103,9 +104,13 @@ export async function POST(request: Request) {
     const dataAccessExpiresAt = getUnixTimestampAsIso(
       getFragmentNumber(fragment, "data_access_expiration_time")
     );
+    let accountDiscoveryDebug: MetaInstagramAccountDiscoveryDebug | null = null;
     const accounts = await getConnectedInstagramAccounts({
       accessToken,
-      config
+      config,
+      onDiscoveryDebug: (debug) => {
+        accountDiscoveryDebug = debug;
+      }
     });
     const account = accounts[0];
 
@@ -114,7 +119,7 @@ export async function POST(request: Request) {
         addConnectionFeedbackParam(
           redirectUrl,
           "sourceError",
-          "No Instagram professional account was found. Connect an Instagram professional account to a Facebook Page, then try again."
+          getInstagramAccountDiscoveryErrorMessage(accountDiscoveryDebug)
         ),
         false
       );
@@ -238,6 +243,54 @@ function getSafeFragmentMetadata(
       .filter(([key]) => !sensitiveKeys.has(key))
       .map(([key, value]) => [key, value.slice(0, 512)])
   );
+}
+
+function getInstagramAccountDiscoveryErrorMessage(
+  debug: MetaInstagramAccountDiscoveryDebug | null
+): string {
+  if (!debug) {
+    return "No Instagram professional account was found. Connect an Instagram professional account to a Facebook Page, then try again.";
+  }
+
+  if (debug.pageCount === 0) {
+    return "Meta returned no managed pages.";
+  }
+
+  const pagesWithInstagramBusinessAccount = debug.pages.filter(
+    (page) => page.hasInstagramBusinessAccount
+  );
+  if (pagesWithInstagramBusinessAccount.length === 0) {
+    return `Meta returned ${debug.pageCount} ${pluralize(
+      "page",
+      debug.pageCount
+    )} but none had instagram_business_account.`;
+  }
+
+  const pagesWithInstagramBusinessAccountId =
+    pagesWithInstagramBusinessAccount.filter(
+      (page) => page.instagramBusinessAccountId
+    );
+  if (pagesWithInstagramBusinessAccountId.length === 0) {
+    return `Meta returned ${debug.pageCount} ${pluralize(
+      "page",
+      debug.pageCount
+    )} and ${pagesWithInstagramBusinessAccount.length} ${pluralize(
+      "instagram_business_account",
+      pagesWithInstagramBusinessAccount.length
+    )}, but none included an Instagram account id.`;
+  }
+
+  return `Meta returned ${debug.pageCount} ${pluralize(
+    "page",
+    debug.pageCount
+  )} and ${pagesWithInstagramBusinessAccountId.length} Instagram account ${pluralize(
+    "id",
+    pagesWithInstagramBusinessAccountId.length
+  )}, but none could be used.`;
+}
+
+function pluralize(word: string, count: number): string {
+  return count === 1 ? word : `${word}s`;
 }
 
 function jsonAndClearState(url: URL, ok: boolean) {
