@@ -4,6 +4,7 @@ import {
   addFeedSource,
   addInstagramSource,
   archiveSourceSubscription,
+  bootstrapInstagramConnection,
   disconnectInstagramConnection,
   discoverWebsiteFeeds,
   pauseSourceSubscription,
@@ -46,9 +47,11 @@ export function SourcesPanel({
   sourceError,
   sourceMessage,
   sourceDiscovery,
-  sourceSort
+  sourceSort,
+  allowInstagramBootstrap
 }: {
   activeView: InboxView;
+  allowInstagramBootstrap: boolean;
   filters: ItemFilters;
   inactiveSources: UserSource[];
   instagramConnection: UserInstagramConnection | null;
@@ -130,6 +133,7 @@ export function SourcesPanel({
           </div>
           <div className="instagram-source-tools">
             <InstagramConnectionPanel
+              allowBootstrap={allowInstagramBootstrap}
               connection={instagramConnection}
               returnTo={currentHref}
             />
@@ -276,9 +280,11 @@ export function SourcesPanel({
 }
 
 function InstagramConnectionPanel({
+  allowBootstrap,
   connection,
   returnTo
 }: {
+  allowBootstrap: boolean;
   connection: UserInstagramConnection | null;
   returnTo: string;
 }) {
@@ -336,6 +342,27 @@ function InstagramConnectionPanel({
           </form>
         ) : null}
       </div>
+      {allowBootstrap ? (
+        <form className="instagram-bootstrap-form" action={bootstrapInstagramConnection}>
+          <input type="hidden" name="returnTo" value={returnTo} />
+          <label className="filter-field">
+            <span>Temporary bootstrap</span>
+            <input
+              className="input"
+              name="instagramBootstrapAccount"
+              placeholder="@known_account or IG account id"
+              required
+            />
+          </label>
+          <button className="button button-secondary button-compact" type="submit">
+            Bootstrap connect
+          </button>
+          <p className="muted">
+            Dev fallback: validates with the configured Instagram Graph token and
+            saves this user connection without /me/accounts.
+          </p>
+        </form>
+      ) : null}
     </div>
   );
 }

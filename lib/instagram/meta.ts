@@ -6,7 +6,9 @@ const DEFAULT_META_INSTAGRAM_REDIRECT_ORIGIN =
 const DEFAULT_META_SCOPES = [
   "instagram_basic",
   "pages_show_list",
-  "pages_read_engagement"
+  "pages_read_engagement",
+  "pages_manage_metadata",
+  "business_management"
 ];
 const META_INSTAGRAM_BUSINESS_LOGIN_EXTRAS = {
   setup: {
@@ -56,6 +58,14 @@ export type MetaInstagramAccountDiscoveryDebug = {
   }>;
 };
 
+export type MetaInstagramBootstrapAccount = {
+  instagramBusinessAccountId: string;
+  username: string | null;
+  displayName: string | null;
+  profilePictureUrl: string | null;
+  resolutionMethod: "direct_account_id" | "business_discovery_username";
+};
+
 type MetaTokenResponse = {
   access_token?: string;
   token_type?: string;
@@ -74,6 +84,20 @@ type MetaAccountsResponse = {
       profile_picture_url?: string | null;
     } | null;
   }>;
+  error?: MetaGraphError;
+};
+
+type MetaInstagramAccountResponse = {
+  id?: string;
+  ig_id?: string;
+  username?: string | null;
+  name?: string | null;
+  profile_picture_url?: string | null;
+  error?: MetaGraphError;
+};
+
+type MetaInstagramBusinessDiscoveryResponse = {
+  business_discovery?: MetaInstagramAccountResponse | null;
   error?: MetaGraphError;
 };
 
@@ -281,6 +305,55 @@ export async function getConnectedInstagramAccounts({
   return accounts;
 }
 
+export async function resolveBootstrapInstagramAccount({
+  accountInput
+}: {
+  accountInput: string;
+}): Promise<MetaInstagramBootstrapAccount> {
+  const accessToken = process.env.INSTAGRAM_GRAPH_ACCESS_TOKEN;
+  const configuredBusinessAccountId =
+    process.env.INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID;
+
+  if (!accessToken || !configuredBusinessAccountId) {
+    throw new MetaInstagramConfigurationError(
+      "Instagram bootstrap requires INSTAGRAM_GRAPH_ACCESS_TOKEN and INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID."
+    );
+  }
+
+  const config = {
+    graphHost:
+      process.env.INSTAGRAM_GRAPH_HOST ?? DEFAULT_INSTAGRAM_GRAPH_HOST,
+    graphVersion:
+      process.env.INSTAGRAM_GRAPH_API_VERSION ??
+      DEFAULT_INSTAGRAM_GRAPH_API_VERSION
+  };
+  const normalizedInput = accountInput.trim();
+
+  if (/^\d+$/.test(normalizedInput)) {
+    const account = await fetchInstagramAccountById({
+      accessToken,
+      accountId: normalizedInput,
+      config
+    });
+    return {
+      ...account,
+      resolutionMethod: "direct_account_id"
+    };
+  }
+
+  const username = normalizeBootstrapInstagramUsername(normalizedInput);
+  const account = await fetchInstagramAccountByUsername({
+    accessToken,
+    baseBusinessAccountId: configuredBusinessAccountId,
+    config,
+    username
+  });
+  return {
+    ...account,
+    resolutionMethod: "business_discovery_username"
+  };
+}
+
 export function computeNextInstagramRefreshAt(
   expiresAt: string | null
 ): string | null {
@@ -326,6 +399,99 @@ export function isInstagramTokenExpired(
   }
 
   return expiresAtMs <= now.getTime();
+}
+
+async function fetchInstagramAccountById({
+  accessToken,
+  accountId,
+  config
+}: {
+  accessToken: string;
+  accountId: string;
+  config: Pick<MetaInstagramAppConfig, "graphHost" | "graphVersion">;
+}): Promise<Omit<MetaInstagramBootstrapAccount, "resolutionMethod">> {
+  const url = graphUrl(config, `/${accountId}`);
+  url.searchParams.set("fields", "id,ig_id,username,name,profile_picture_url");
+  url.searchParams.set("access_token", accessToken);
+
+  const payload = await fetchGraphJson<MetaInstagramAccountResponse>(
+    url,
+    "Instagram bootstrap account lookup"
+  );
+  return parseBootstrapAccount(payload);
+}
+
+async function fetchInstagramAccountByUsername({
+  accessToken,
+  baseBusinessAccountId,
+  config,
+  username
+}: {
+  accessToken: string;
+  baseBusinessAccountId: string;
+  config: Pick<MetaInstagramAppConfig, "graphHost" | "graphVersion">;
+  username: string;
+}): Promise<Omit<MetaInstagramBootstrapAccount, "resolutionMethod">> {
+  const url = graphUrl(config, `/${baseBusinessAccountId}`);
+  url.searchParams.set(
+    "fields",
+    `business_discovery.username(${username}){id,ig_id,username,name,profile_picture_url}`
+  );
+  url.searchParams.set("access_token", accessToken);
+
+  const payload = await fetchGraphJson<MetaInstagramBusinessDiscoveryResponse>(
+    url,
+    "Instagram bootstrap username lookup"
+  );
+  return parseBootstrapAccount(payload.business_discovery ?? {});
+}
+
+function parseBootstrapAccount(
+  account: MetaInstagramAccountResponse
+): Omit<MetaInstagramBootstrapAccount, "resolutionMethod"> {
+  const accountId = account.id ?? account.ig_id;
+  if (!accountId) {
+    throw new MetaInstagramApiError(
+      "Meta did not return an Instagram account id for bootstrap.",
+      null
+    );
+  }
+
+  return {
+    instagramBusinessAccountId: accountId,
+    username: account.username ?? null,
+    displayName: account.name ?? account.username ?? null,
+    profilePictureUrl: account.profile_picture_url ?? null
+  };
+}
+
+function normalizeBootstrapInstagramUsername(input: string): string {
+  const withoutAt = input.replace(/^@/, "").trim();
+
+  try {
+    const url = new URL(withoutAt);
+    if (!/(\.|^)instagram\.com$/i.test(url.hostname)) {
+      throw new MetaInstagramConfigurationError(
+        "Enter an Instagram username, profile URL, or account id."
+      );
+    }
+
+    const handle = url.pathname
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean)[0];
+    if (handle && /^[A-Za-z0-9._]+$/.test(handle)) {
+      return handle;
+    }
+  } catch {
+    if (/^[A-Za-z0-9._]+$/.test(withoutAt)) {
+      return withoutAt;
+    }
+  }
+
+  throw new MetaInstagramConfigurationError(
+    "Enter an Instagram username, profile URL, or account id."
+  );
 }
 
 function graphUrl(

@@ -244,6 +244,7 @@ export default async function Home({
 
       <SourcesPanel
         activeView={activeView}
+        allowInstagramBootstrap={process.env.ALLOW_INSTAGRAM_BOOTSTRAP === "true"}
         filters={filters}
         inactiveSources={inactiveSources}
         instagramConnection={

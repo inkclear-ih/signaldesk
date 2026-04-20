@@ -927,6 +927,21 @@ video.instagram-media-asset {
   justify-content: flex-end;
 }
 
+.instagram-bootstrap-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: var(--ui-space-2);
+  align-items: end;
+  border-top: 1px solid var(--ui-border-faint);
+  padding-top: var(--ui-space-2);
+}
+
+.instagram-bootstrap-form .muted {
+  grid-column: 1 / -1;
+  font-size: var(--ui-font-size-meta);
+}
+
 .advanced-source-form {
   margin-bottom: var(--ui-space-3);
   padding-bottom: var(--ui-space-3);
@@ -1366,6 +1381,7 @@ video.instagram-media-asset {
   .source-summary,
   .source-family-section,
   .instagram-connection-panel,
+  .instagram-bootstrap-form,
   .add-source-form,
   .feed-url-form,
   .metric-strip {

@@ -25,6 +25,13 @@ import {
   InstagramSourceInputError,
   normalizeInstagramAccountInput
 } from "@/lib/sources/instagram";
+import {
+  INSTAGRAM_SOURCE_FAMILY,
+  META_INSTAGRAM_PROVIDER,
+  MetaInstagramApiError,
+  MetaInstagramConfigurationError,
+  resolveBootstrapInstagramAccount
+} from "@/lib/instagram/meta";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
@@ -474,6 +481,96 @@ export async function disconnectInstagramConnection(formData: FormData) {
   });
 }
 
+export async function bootstrapInstagramConnection(formData: FormData) {
+  if (!isInstagramBootstrapAllowed()) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Instagram bootstrap is not enabled."
+    });
+  }
+
+  const rawAccount = String(formData.get("instagramBootstrapAccount") ?? "").trim();
+  if (!rawAccount) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Enter an Instagram username, profile URL, or account id."
+    });
+  }
+
+  const { userId } = await getAuthenticatedContext();
+
+  let account;
+  try {
+    account = await resolveBootstrapInstagramAccount({ accountInput: rawAccount });
+  } catch (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: getInstagramBootstrapErrorMessage(error)
+    });
+  }
+
+  const accessToken = process.env.INSTAGRAM_GRAPH_ACCESS_TOKEN;
+  if (!accessToken) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Instagram bootstrap token is not configured."
+    });
+  }
+
+  const admin = createSupabaseAdminClient();
+  const now = new Date().toISOString();
+  const { error } = await admin.from("user_provider_connections").upsert(
+    {
+      user_id: userId,
+      source_family: INSTAGRAM_SOURCE_FAMILY,
+      provider: META_INSTAGRAM_PROVIDER,
+      status: "connected",
+      access_token: accessToken,
+      refresh_token: null,
+      token_type: null,
+      token_expires_at: null,
+      refresh_expires_at: null,
+      last_refreshed_at: now,
+      next_refresh_at: null,
+      refresh_attempted_at: null,
+      refresh_error: null,
+      refresh_metadata: {
+        supports_refresh: false,
+        refresh_method: null,
+        token_source: "instagram_graph_env_bootstrap",
+        last_exchange_at: now
+      },
+      instagram_business_account_id: account.instagramBusinessAccountId,
+      connected_username: account.username,
+      display_name: account.displayName,
+      metadata: {
+        connection_method: "bootstrap",
+        bootstrap_source: "manual_known_account",
+        bootstrap_resolution_method: account.resolutionMethod,
+        profile_picture_url: account.profilePictureUrl,
+        configured_business_account_id:
+          process.env.INSTAGRAM_GRAPH_BUSINESS_ACCOUNT_ID ?? null
+      },
+      disconnected_at: null
+    },
+    { onConflict: "user_id,provider" }
+  );
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not save Instagram bootstrap connection."
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: `Instagram bootstrap connected${
+      account.username ? ` as @${account.username}` : ""
+    }.`
+  });
+}
+
 export async function pauseSourceSubscription(formData: FormData) {
   await setSourceSubscriptionStatus(formData, "paused");
 }
@@ -749,6 +846,21 @@ function getInstagramSubscriptionSuccessMessage(
   }
 
   return `Restored ${existingSource.source_name ?? name}.`;
+}
+
+function getInstagramBootstrapErrorMessage(error: unknown): string {
+  if (
+    error instanceof MetaInstagramApiError ||
+    error instanceof MetaInstagramConfigurationError
+  ) {
+    return error.message;
+  }
+
+  return "Could not validate that Instagram account for bootstrap.";
+}
+
+function isInstagramBootstrapAllowed(): boolean {
+  return process.env.ALLOW_INSTAGRAM_BOOTSTRAP === "true";
 }
 
 function getFeedDiscoveryErrorMessage(error: unknown): string {
