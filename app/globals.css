@@ -1145,6 +1145,43 @@ video.instagram-media-asset {
   margin-bottom: var(--ui-space-2);
 }
 
+.source-family-details {
+  margin-bottom: var(--ui-space-3);
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.source-family-details summary {
+  color: var(--ui-text-muted);
+}
+
+.source-family-summary-label {
+  color: var(--ui-text);
+  font-size: var(--ui-font-size-control);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.source-family-details[open] > summary {
+  margin-bottom: var(--ui-space-2);
+}
+
+.source-family-heading-actions {
+  margin-bottom: var(--ui-space-2);
+}
+
+.source-family-details-body {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.source-family-details .instagram-source-section,
+.source-family-details .inactive-sources {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .source-family-rescan {
   flex: 0 0 auto;
 }

@@ -47,6 +47,40 @@ type ScanStatusSummary = {
   detail: string;
 };
 
+function CollapsibleSourceFamilySection({
+  children,
+  className,
+  count,
+  rescanControl,
+  title
+}: {
+  children: React.ReactNode;
+  className?: string;
+  count: number;
+  rescanControl?: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <details
+      className={`advanced-source-form source-family-details${className ? ` ${className}` : ""}`}
+      open
+    >
+      <summary>
+        <span className="section-title">
+          <span className="source-family-summary-label">{title}</span>
+          <span className="section-count">({count})</span>
+        </span>
+      </summary>
+      {rescanControl ? (
+        <div className="source-family-heading-actions">{rescanControl}</div>
+      ) : null}
+      <div className="source-family-details-body">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 export function SourcesPanel({
   activeView,
   filters,
@@ -221,61 +255,61 @@ export function SourcesPanel({
         </span>
       </div>
 
-      <div className="source-family-heading">
-        <div className="section-title">
-          <h3>Web/feed sources</h3>
-          <span className="section-count">({webFeedMetrics.length})</span>
-        </div>
-        <RescanScopeForm
-          disabled={scannableWebFeedSourceCount === 0}
-          label="Rescan Web/Feeds"
-          returnTo={currentHref}
-          scope="web_feed"
-        />
-      </div>
-
-      {webFeedMetrics.length ? (
-        <div className="source-table" role="table" aria-label="Web and feed source scan table">
-          <div className="source-row source-head" role="row">
-            {SOURCE_COLUMNS.map((column) => (
-              <span className={column.className} role="columnheader" key={column.key}>
-                <a
-                  className="source-sort-button"
-                  href={buildHref({
-                    view: activeView,
-                    filters,
-                    itemSort,
-                    sourceSort: nextSourceSort(sourceSort, column.key)
-                  })}
-                >
-                  {column.label}
-                  <SortArrow sourceSort={sourceSort} columnKey={column.key} />
-                </a>
+      <CollapsibleSourceFamilySection
+        count={webFeedMetrics.length}
+        rescanControl={
+          <RescanScopeForm
+            disabled={scannableWebFeedSourceCount === 0}
+            label="Rescan Web/Feeds"
+            returnTo={currentHref}
+            scope="web_feed"
+          />
+        }
+        title="Web/feed sources"
+      >
+        {webFeedMetrics.length ? (
+          <div className="source-table" role="table" aria-label="Web and feed source scan table">
+            <div className="source-row source-head" role="row">
+              {SOURCE_COLUMNS.map((column) => (
+                <span className={column.className} role="columnheader" key={column.key}>
+                  <a
+                    className="source-sort-button"
+                    href={buildHref({
+                      view: activeView,
+                      filters,
+                      itemSort,
+                      sourceSort: nextSourceSort(sourceSort, column.key)
+                    })}
+                  >
+                    {column.label}
+                    <SortArrow sourceSort={sourceSort} columnKey={column.key} />
+                  </a>
+                </span>
+              ))}
+              <span className="source-actions" role="columnheader">
+                Actions
               </span>
-            ))}
-            <span className="source-actions" role="columnheader">
-              Actions
-            </span>
+            </div>
+            <div className="source-body" role="rowgroup">
+              {webFeedMetrics.map((metric) => (
+                <SourceRow
+                  activeView={activeView}
+                  filters={filters}
+                  itemSort={itemSort}
+                  key={metric.source.user_source_id}
+                  metric={metric}
+                  returnTo={currentHref}
+                  sourceSort={sourceSort}
+                />
+              ))}
+            </div>
           </div>
-          <div className="source-body" role="rowgroup">
-            {webFeedMetrics.map((metric) => (
-              <SourceRow
-                activeView={activeView}
-                filters={filters}
-                itemSort={itemSort}
-                key={metric.source.user_source_id}
-                metric={metric}
-                returnTo={currentHref}
-                sourceSort={sourceSort}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="muted source-family-empty">
-          No active web/feed sources yet. Add a website URL to start.
-        </p>
-      )}
+        ) : (
+          <p className="muted source-family-empty">
+            No active web/feed sources yet. Add a website URL to start.
+          </p>
+        )}
+      </CollapsibleSourceFamilySection>
 
       <InstagramSourcesSection
         scannableSourceCount={scannableInstagramSourceCount}
@@ -284,18 +318,22 @@ export function SourcesPanel({
       />
 
       {sortedInactiveSources.length ? (
-        <div className="inactive-sources" aria-label="Paused and archived sources">
-          <h3>Paused and archived</h3>
-          <div className="inactive-source-list">
-            {sortedInactiveSources.map((source) => (
-              <InactiveSourceRow
-                key={source.user_source_id}
-                returnTo={currentHref}
-                source={source}
-              />
-            ))}
+        <CollapsibleSourceFamilySection
+          count={sortedInactiveSources.length}
+          title="Paused and archived"
+        >
+          <div className="inactive-sources" aria-label="Paused and archived sources">
+            <div className="inactive-source-list">
+              {sortedInactiveSources.map((source) => (
+                <InactiveSourceRow
+                  key={source.user_source_id}
+                  returnTo={currentHref}
+                  source={source}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        </CollapsibleSourceFamilySection>
       ) : null}
     </section>
   );
@@ -539,20 +577,19 @@ function InstagramSourcesSection({
   scannableSourceCount: number;
 }) {
   return (
-    <section className="instagram-source-section" aria-labelledby="instagram-sources-heading">
-      <div className="source-family-heading">
-        <div className="section-title">
-          <h3 id="instagram-sources-heading">Instagram professional accounts</h3>
-          <span className="section-count">({metrics.length})</span>
-        </div>
+    <CollapsibleSourceFamilySection
+      className="instagram-source-section"
+      count={metrics.length}
+      rescanControl={
         <RescanScopeForm
           disabled={scannableSourceCount === 0}
           label="Rescan Instagram"
           returnTo={returnTo}
           scope="instagram"
         />
-      </div>
-
+      }
+      title="Instagram professional accounts"
+    >
       {metrics.length ? (
         <div className="instagram-source-list">
           {metrics.map((metric) => (
@@ -569,7 +606,7 @@ function InstagramSourcesSection({
           to monitor account posts.
         </p>
       )}
-    </section>
+    </CollapsibleSourceFamilySection>
   );
 }
 
