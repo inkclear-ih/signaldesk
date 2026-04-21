@@ -86,10 +86,11 @@ export async function scanSources({
 } = {}): Promise<SourceScanSummary> {
   const supabase = createSupabaseAdminClient();
   const sourceTypes = scope ? SOURCE_TYPES_BY_SCOPE[scope] : null;
-  const activeSourceIds =
-    sourceIds && sourceIds.length
-      ? [...new Set(sourceIds)]
-      : await getActiveSubscribedSourceIds(supabase, sourceTypes);
+  const activeSourceIds = await getActiveSubscribedSourceIds(supabase, {
+    ownerUserId,
+    sourceIds,
+    sourceTypes
+  });
 
   if (!activeSourceIds.length) {
     return emptySummary();
@@ -130,13 +131,34 @@ export async function scanSources({
 
 async function getActiveSubscribedSourceIds(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
-  sourceTypes: SourceType[] | null = null
+  {
+    ownerUserId,
+    sourceIds,
+    sourceTypes
+  }: {
+    ownerUserId?: string;
+    sourceIds?: string[];
+    sourceTypes: SourceType[] | null;
+  }
 ): Promise<string[]> {
+  const requestedSourceIds =
+    sourceIds && sourceIds.length ? [...new Set(sourceIds)] : null;
+
   if (!sourceTypes) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("user_sources")
       .select("source_id")
       .eq("status", "active");
+
+    if (ownerUserId) {
+      query = query.eq("user_id", ownerUserId);
+    }
+
+    if (requestedSourceIds) {
+      query = query.in("source_id", requestedSourceIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Could not load active subscriptions: ${error.message}`);
@@ -145,11 +167,19 @@ async function getActiveSubscribedSourceIds(
     return getUniqueSourceIds(data);
   }
 
-  const query = supabase
+  let query = supabase
     .from("user_sources")
     .select("source_id, sources!inner(type)")
     .eq("status", "active")
     .in("sources.type", sourceTypes);
+
+  if (ownerUserId) {
+    query = query.eq("user_id", ownerUserId);
+  }
+
+  if (requestedSourceIds) {
+    query = query.in("source_id", requestedSourceIds);
+  }
 
   const { data, error } = await query;
 
