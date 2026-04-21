@@ -23,6 +23,9 @@ export function buildHref({
   if (filters?.sourceId) {
     params.set("source", filters.sourceId);
   }
+  for (const sourceTagId of filters?.sourceTagIds ?? []) {
+    params.append("sourceTag", sourceTagId);
+  }
   if (filters?.newOnly) {
     params.set("new", "1");
   }

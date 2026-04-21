@@ -32,6 +32,11 @@ import {
   MetaInstagramConfigurationError,
   resolveBootstrapInstagramAccount
 } from "@/lib/instagram/meta";
+import {
+  isSourceTagColor,
+  normalizeSourceTagName
+} from "@/lib/inbox/source-tags";
+import type { SourceTag } from "@/lib/inbox/types";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
@@ -583,6 +588,174 @@ export async function archiveSourceSubscription(formData: FormData) {
   await setSourceSubscriptionStatus(formData, "archived");
 }
 
+export async function createSourceTag(formData: FormData) {
+  const rawName = String(formData.get("tagName") ?? "");
+  const name = normalizeSourceTagName(rawName);
+  const color = String(formData.get("tagColor") ?? "");
+  const assignUserSourceId = String(formData.get("assignUserSourceId") ?? "").trim();
+
+  if (!name) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Enter a tag name."
+    });
+  }
+
+  if (!isSourceTagColor(color)) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Choose a tag color from the palette."
+    });
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const existingTag = await findExistingSourceTag(supabase, name);
+
+  let sourceTagId = existingTag?.id ?? null;
+  let message = existingTag
+    ? `${existingTag.name} already exists.`
+    : `Created ${name}.`;
+
+  if (!sourceTagId) {
+    const { data, error } = await supabase
+      .from("source_tags")
+      .insert({
+        user_id: userId,
+        name,
+        color
+      })
+      .select("id,name,color")
+      .single();
+
+    if (error) {
+      const duplicateTag = await findExistingSourceTag(supabase, name);
+      if (!duplicateTag) {
+        finishSourceMutation(formData, {
+          type: "error",
+          message: "Could not create that source tag."
+        });
+      }
+
+      sourceTagId = duplicateTag.id;
+      message = `${duplicateTag.name} already exists.`;
+    } else {
+      const createdTag = data as SourceTag;
+      sourceTagId = createdTag.id;
+      message = `Created ${createdTag.name}.`;
+    }
+  }
+
+  if (assignUserSourceId && sourceTagId) {
+    const assigned = await assignTagToSource({
+      supabase,
+      userId,
+      sourceTagId,
+      userSourceId: assignUserSourceId
+    });
+
+    if (!assigned) {
+      finishSourceMutation(formData, {
+        type: "error",
+        message: "Could not add that tag to the source."
+      });
+    }
+
+    message = existingTag
+      ? `${existingTag.name} added to the source.`
+      : `${name} created and added to the source.`;
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message
+  });
+}
+
+export async function assignSourceTagToSource(formData: FormData) {
+  const userSourceId = getUserSourceId(formData);
+  const sourceTagId = String(formData.get("sourceTagId") ?? "").trim();
+
+  if (!userSourceId || !sourceTagId) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const assigned = await assignTagToSource({
+    supabase,
+    userId,
+    sourceTagId,
+    userSourceId
+  });
+
+  if (!assigned) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not add that tag to the source."
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: "Source tag added."
+  });
+}
+
+export async function removeSourceTagFromSource(formData: FormData) {
+  const userSourceId = getUserSourceId(formData);
+  const sourceTagId = String(formData.get("sourceTagId") ?? "").trim();
+
+  if (!userSourceId || !sourceTagId) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const { error } = await supabase
+    .from("user_source_tags")
+    .delete()
+    .eq("user_id", userId)
+    .eq("user_source_id", userSourceId)
+    .eq("source_tag_id", sourceTagId);
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not remove that tag from the source."
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: "Source tag removed."
+  });
+}
+
+export async function clearSourceTagsFromSource(formData: FormData) {
+  const userSourceId = getUserSourceId(formData);
+
+  if (!userSourceId) {
+    return;
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const { error } = await supabase
+    .from("user_source_tags")
+    .delete()
+    .eq("user_id", userId)
+    .eq("user_source_id", userSourceId);
+
+  if (error) {
+    finishSourceMutation(formData, {
+      type: "error",
+      message: "Could not clear tags from that source."
+    });
+  }
+
+  finishSourceMutation(formData, {
+    type: "message",
+    message: "Source tags cleared."
+  });
+}
+
 function getItemId(formData: FormData): string {
   return String(formData.get("itemId") ?? "");
 }
@@ -619,8 +792,61 @@ async function getExistingItemState(
   return (data as StoredItemState | null) ?? null;
 }
 
+async function findExistingSourceTag(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  name: string
+): Promise<SourceTag | null> {
+  const { data, error } = await supabase
+    .from("source_tags")
+    .select("id,name,color")
+    .order("name", { ascending: true });
+
+  if (error) {
+    return null;
+  }
+
+  const normalizedName = name.toLocaleLowerCase();
+  return (
+    ((data ?? []) as SourceTag[]).find(
+      (tag) => tag.name.toLocaleLowerCase() === normalizedName
+    ) ?? null
+  );
+}
+
 function isDisposition(value: string): value is Exclude<DispositionState, "none"> {
   return DISPOSITION_STATES.has(value);
+}
+
+async function assignTagToSource({
+  supabase,
+  userId,
+  sourceTagId,
+  userSourceId
+}: {
+  supabase: ReturnType<typeof createSupabaseServerClient>;
+  userId: string;
+  sourceTagId: string;
+  userSourceId: string;
+}): Promise<boolean> {
+  const { error } = await supabase.from("user_source_tags").insert({
+    user_id: userId,
+    user_source_id: userSourceId,
+    source_tag_id: sourceTagId
+  });
+
+  if (!error) {
+    return true;
+  }
+
+  const errorCode =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+      ? ((error as { code: string }).code as string)
+      : null;
+
+  return errorCode === "23505";
 }
 
 function finishItemMutation(formData: FormData): never | void {

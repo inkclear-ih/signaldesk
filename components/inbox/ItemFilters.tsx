@@ -1,11 +1,13 @@
 import { buildHref } from "@/lib/inbox/navigation";
 import { ITEM_SORT_OPTIONS } from "@/lib/inbox/item-sort";
+import { SourceTagFilterForm } from "./SourceTagFilterForm";
 import type {
   InboxView,
   ItemFilters as ItemFilterState,
   ItemSort,
   SourceMetric,
-  SourceSort
+  SourceSort,
+  SourceTag
 } from "@/lib/inbox/types";
 
 export function ItemFilters({
@@ -15,6 +17,7 @@ export function ItemFilters({
   itemSort,
   shownCount,
   sourceMetrics,
+  sourceTags,
   sourceSort,
   totalCount
 }: {
@@ -24,6 +27,7 @@ export function ItemFilters({
   itemSort: ItemSort;
   shownCount: number;
   sourceMetrics: SourceMetric[];
+  sourceTags: SourceTag[];
   sourceSort: SourceSort;
   totalCount: number;
 }) {
@@ -102,9 +106,21 @@ export function ItemFilters({
           </a>
         ) : null}
       </form>
+      <SourceTagFilterForm
+        activeView={activeView}
+        filters={filters}
+        itemSort={itemSort}
+        sourceSort={sourceSort}
+        sourceTags={sourceTags}
+      />
       <p className="muted filter-result">
         {shownCount} of {totalCount} items shown
         {selectedSource ? ` from ${selectedSource.name}` : ""}
+        {filters.sourceTagIds.length
+          ? ` matching ${filters.sourceTagIds.length} source tag${
+              filters.sourceTagIds.length === 1 ? "" : "s"
+            }`
+          : ""}
       </p>
     </section>
   );

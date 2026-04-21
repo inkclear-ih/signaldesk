@@ -5,8 +5,9 @@ import { SourcesPanel } from "@/components/inbox/SourcesPanel";
 import { TabsNav } from "@/components/inbox/TabsNav";
 import { signIn, signOut } from "./actions";
 import { ITEM_LIMIT, METRIC_ITEM_LIMIT } from "@/lib/inbox/constants";
-import { cleanTags } from "@/lib/inbox/formatting";
 import {
+  filterSourceMetrics,
+  filterUserSources,
   filterItemsByView,
   hasActiveFilters,
   parseFilters
@@ -14,12 +15,14 @@ import {
 import { parseItemSort, sortItems } from "@/lib/inbox/item-sort";
 import { buildSourceMetrics, buildTopMetrics, getLatestRunsBySource } from "@/lib/inbox/metrics";
 import { buildHref, parseView } from "@/lib/inbox/navigation";
+import { cleanSourceTags } from "@/lib/inbox/source-tags";
 import { parseSourceSort, sortSourceMetrics } from "@/lib/inbox/source-table";
 import type {
   InboxItem,
   ItemsByView,
   MetricItem,
   SearchParams,
+  SourceTag,
   UserInstagramConnection,
   UserSource
 } from "@/lib/inbox/types";
@@ -56,6 +59,7 @@ export default async function Home({
     { data: hiddenItems },
     { data: reviewedItems },
     { data: sources },
+    { data: sourceTags },
     { data: instagramConnection },
     { data: metricItems },
     { count: totalItemCount },
@@ -120,6 +124,10 @@ export default async function Home({
       .select("*")
       .order("source_name", { ascending: true }),
     supabase
+      .from("source_tags")
+      .select("id,name,color")
+      .order("name", { ascending: true }),
+    supabase
       .from("current_user_instagram_connections")
       .select("*")
       .order("updated_at", { ascending: false })
@@ -163,6 +171,7 @@ export default async function Home({
     reviewed: (reviewedItems ?? []) as InboxItem[]
   };
   const typedSources = (sources ?? []) as UserSource[];
+  const allSourceTags = cleanSourceTags((sourceTags ?? []) as SourceTag[]);
   const activeSources = typedSources.filter(
     (source) => source.user_source_status === "active"
   );
@@ -170,8 +179,9 @@ export default async function Home({
     (source) => source.user_source_status !== "active"
   );
   const metricItemsList = (metricItems ?? []) as MetricItem[];
-  const sourceIds = new Set(activeSources.map((source) => source.source_id));
-  const filters = parseFilters(searchParams, sourceIds);
+  const sourceIds = new Set(typedSources.map((source) => source.source_id));
+  const sourceTagIds = new Set(allSourceTags.map((tag) => tag.id));
+  const filters = parseFilters(searchParams, sourceIds, sourceTagIds);
   const latestRunsBySource = await getLatestRunsBySource(
     supabase,
     activeSources.map((source) => source.source_id)
@@ -180,10 +190,16 @@ export default async function Home({
     buildSourceMetrics(activeSources, metricItemsList, latestRunsBySource),
     sourceSort
   );
-  const sourceTags = new Map(
-    activeSources.map((source) => [source.source_id, cleanTags(source.tags)])
+  const sourceTagsBySource = new Map(
+    typedSources.map((source) => [source.source_id, cleanSourceTags(source.source_tags)])
   );
-  const filteredItemsByView = filterItemsByView(itemsByView, filters);
+  const filteredSourceMetrics = filterSourceMetrics(sourceMetrics, filters);
+  const filteredInactiveSources = filterUserSources(inactiveSources, filters);
+  const filteredItemsByView = filterItemsByView(
+    itemsByView,
+    filters,
+    sourceTagsBySource
+  );
   const sortedItemsByView: ItemsByView = {
     inbox: sortItems(filteredItemsByView.inbox, itemSort),
     saved: sortItems(filteredItemsByView.saved, itemSort),
@@ -246,12 +262,13 @@ export default async function Home({
         activeView={activeView}
         allowInstagramBootstrap={process.env.ALLOW_INSTAGRAM_BOOTSTRAP === "true"}
         filters={filters}
-        inactiveSources={inactiveSources}
+        inactiveSources={filteredInactiveSources}
         instagramConnection={
           (instagramConnection as UserInstagramConnection | null) ?? null
         }
         itemSort={itemSort}
-        metrics={sourceMetrics}
+        metrics={filteredSourceMetrics}
+        sourceTags={allSourceTags}
         sourceError={searchParams?.sourceError}
         sourceDiscovery={searchParams?.sourceDiscovery}
         sourceMessage={searchParams?.sourceMessage}
@@ -265,6 +282,7 @@ export default async function Home({
         itemSort={itemSort}
         shownCount={activeItems.length}
         sourceMetrics={sourceMetrics}
+        sourceTags={allSourceTags}
         sourceSort={sourceSort}
         totalCount={itemsByView[activeView].length}
       />
@@ -277,7 +295,7 @@ export default async function Home({
         knownInboxItems={knownInboxItems}
         newInboxItems={newInboxItems}
         returnTo={currentHref}
-        sourceTags={sourceTags}
+        sourceTags={sourceTagsBySource}
       />
     </main>
   );

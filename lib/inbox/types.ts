@@ -3,6 +3,7 @@ export type SearchParams = {
   error?: string;
   view?: string;
   source?: string;
+  sourceTag?: string | string[];
   new?: string;
   unreviewed?: string;
   itemSort?: string;
@@ -17,6 +18,15 @@ export type SearchParams = {
 export type DispositionState = "none" | "saved" | "archived" | "hidden";
 export type InboxView = "inbox" | "saved" | "archived" | "hidden" | "reviewed";
 export type SourceType = "rss" | "atom" | "instagram";
+export type SourceTagColor =
+  | "slate"
+  | "blue"
+  | "green"
+  | "amber"
+  | "rose"
+  | "purple"
+  | "teal"
+  | "orange";
 export type ItemSortKey = "default" | "seen" | "published" | "source";
 export type SourceSortKey =
   | "source"
@@ -57,7 +67,6 @@ export type UserSource = {
   source_key: string | null;
   display_name: string | null;
   user_source_status: "active" | "paused" | "archived";
-  tags: string[] | null;
   source_name: string;
   source_url: string;
   site_url: string | null;
@@ -66,6 +75,13 @@ export type UserSource = {
   source_status: string;
   last_fetched_at: string | null;
   last_error: string | null;
+  source_tags: SourceTag[];
+};
+
+export type SourceTag = {
+  id: string;
+  name: string;
+  color: SourceTagColor;
 };
 
 export type UserInstagramConnection = {
@@ -112,6 +128,7 @@ export type ScanState = "running" | "ok" | "partial" | "error";
 
 export type ItemFilters = {
   sourceId: string;
+  sourceTagIds: string[];
   newOnly: boolean;
   unreviewedOnly: boolean;
 };
@@ -136,7 +153,7 @@ export type SourceMetric = {
   source: UserSource;
   name: string;
   status: string;
-  tags: string[];
+  tags: SourceTag[];
   fetchedCount: number | null;
   latestRunStartedAt: string | null;
   latestRunFinishedAt: string | null;

@@ -1,5 +1,7 @@
 import { Tags } from "./Tags";
 import { RescanSourcesButton } from "./RescanSourcesButton";
+import { SourceTagEditor } from "./SourceTagEditor";
+import { SourceTagFilterForm } from "./SourceTagFilterForm";
 import {
   addFeedSource,
   addInstagramSource,
@@ -27,6 +29,7 @@ import type {
   SourceMetric,
   SourceSort,
   SourceSortKey,
+  SourceTag,
   UserInstagramConnection,
   UserSource
 } from "@/lib/inbox/types";
@@ -88,6 +91,7 @@ export function SourcesPanel({
   instagramConnection,
   itemSort,
   metrics,
+  sourceTags,
   sourceError,
   sourceMessage,
   sourceDiscovery,
@@ -101,6 +105,7 @@ export function SourcesPanel({
   instagramConnection: UserInstagramConnection | null;
   itemSort: ItemSort;
   metrics: SourceMetric[];
+  sourceTags: SourceTag[];
   sourceError?: string;
   sourceMessage?: string;
   sourceDiscovery?: string;
@@ -255,6 +260,14 @@ export function SourcesPanel({
         </span>
       </div>
 
+      <SourceTagFilterForm
+        activeView={activeView}
+        filters={filters}
+        itemSort={itemSort}
+        sourceSort={sourceSort}
+        sourceTags={sourceTags}
+      />
+
       <CollapsibleSourceFamilySection
         count={webFeedMetrics.length}
         rescanControl={
@@ -299,6 +312,7 @@ export function SourcesPanel({
                   key={metric.source.user_source_id}
                   metric={metric}
                   returnTo={currentHref}
+                  sourceTags={sourceTags}
                   sourceSort={sourceSort}
                 />
               ))}
@@ -315,6 +329,7 @@ export function SourcesPanel({
         scannableSourceCount={scannableInstagramSourceCount}
         metrics={instagramMetrics}
         returnTo={currentHref}
+        sourceTags={sourceTags}
       />
 
       {sortedInactiveSources.length ? (
@@ -329,6 +344,7 @@ export function SourcesPanel({
                   key={source.user_source_id}
                   returnTo={currentHref}
                   source={source}
+                  sourceTags={sourceTags}
                 />
               ))}
             </div>
@@ -484,6 +500,7 @@ function SourceRow({
   itemSort,
   metric,
   returnTo,
+  sourceTags,
   sourceSort
 }: {
   activeView: InboxView;
@@ -491,6 +508,7 @@ function SourceRow({
   itemSort: ItemSort;
   metric: SourceMetric;
   returnTo: string;
+  sourceTags: SourceTag[];
   sourceSort: SourceSort;
 }) {
   const rowClasses = ["source-row"];
@@ -530,7 +548,12 @@ function SourceRow({
             </span>
           ) : null}
         </span>
-        {metric.tags.length ? <Tags tags={metric.tags.slice(0, 3)} compact /> : null}
+        {metric.tags.length ? <Tags tags={metric.tags} compact /> : null}
+        <SourceTagEditor
+          returnTo={returnTo}
+          source={metric.source}
+          sourceTags={sourceTags}
+        />
         {metric.latestScanState ? (
           <span className="source-scan-detail">
             {getScanStateDetail(metric)}
@@ -570,11 +593,13 @@ function SourceRow({
 function InstagramSourcesSection({
   metrics,
   returnTo,
-  scannableSourceCount
+  scannableSourceCount,
+  sourceTags
 }: {
   metrics: SourceMetric[];
   returnTo: string;
   scannableSourceCount: number;
+  sourceTags: SourceTag[];
 }) {
   return (
     <CollapsibleSourceFamilySection
@@ -597,6 +622,7 @@ function InstagramSourcesSection({
               key={metric.source.user_source_id}
               metric={metric}
               returnTo={returnTo}
+              sourceTags={sourceTags}
             />
           ))}
         </div>
@@ -636,10 +662,12 @@ function RescanScopeForm({
 
 function InstagramSourceRow({
   metric,
-  returnTo
+  returnTo,
+  sourceTags
 }: {
   metric: SourceMetric;
   returnTo: string;
+  sourceTags: SourceTag[];
 }) {
   const handle =
     getInstagramHandleFromMetadata(metric.source.metadata) ??
@@ -669,6 +697,12 @@ function InstagramSourceRow({
             </span>
           ) : null}
         </span>
+        {metric.tags.length ? <Tags tags={metric.tags} compact /> : null}
+        <SourceTagEditor
+          returnTo={returnTo}
+          source={metric.source}
+          sourceTags={sourceTags}
+        />
         <p className="muted instagram-source-note">
           Account posts flow through Instagram Graph API professional account
           discovery when the account and workspace token allow access.
@@ -694,10 +728,12 @@ function InstagramSourceRow({
 
 function InactiveSourceRow({
   returnTo,
-  source
+  source,
+  sourceTags
 }: {
   returnTo: string;
   source: UserSource;
+  sourceTags: SourceTag[];
 }) {
   return (
     <div className="inactive-source-row">
@@ -718,6 +754,8 @@ function InactiveSourceRow({
             </span>
           ) : null}
         </span>
+        {source.source_tags.length ? <Tags tags={source.source_tags} compact /> : null}
+        <SourceTagEditor returnTo={returnTo} source={source} sourceTags={sourceTags} />
       </div>
       <SourceActions returnTo={returnTo} source={source} />
     </div>
