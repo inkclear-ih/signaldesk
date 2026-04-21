@@ -1520,9 +1520,10 @@ video.instagram-media-asset {
   min-height: 30px;
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-sm);
-  background: rgba(236, 236, 236, 0.04);
-  color: var(--ui-text);
+  background: rgba(26, 26, 28, 0.92);
+  color: rgba(236, 236, 236, 0.9);
   padding: 4px 9px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
@@ -1532,7 +1533,7 @@ video.instagram-media-asset {
 
 .source-tag-toggle:hover {
   border-color: rgba(236, 236, 236, 0.24);
-  background: rgba(236, 236, 236, 0.08);
+  background: rgba(30, 30, 32, 0.94);
 }
 
 .source-tag-toggle.is-selected,
@@ -1565,6 +1566,11 @@ video.instagram-media-asset {
   color: #dbe4f0;
 }
 
+.source-tag-toggle-slate:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(191, 204, 220, 0.5);
+  background: rgba(68, 79, 94, 0.92);
+}
+
 .source-tag-toggle-slate.is-selected,
 .source-tag-toggle-slate[aria-pressed="true"] {
   border-color: rgba(148, 163, 184, 0.38);
@@ -1583,6 +1589,11 @@ video.instagram-media-asset {
 
 .source-tag-toggle-blue .source-tag-toggle-name {
   color: #d7e9ff;
+}
+
+.source-tag-toggle-blue:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(125, 182, 255, 0.52);
+  background: rgba(44, 71, 111, 0.92);
 }
 
 .source-tag-toggle-blue.is-selected,
@@ -1605,6 +1616,11 @@ video.instagram-media-asset {
   color: #d7f7df;
 }
 
+.source-tag-toggle-green:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(112, 233, 154, 0.5);
+  background: rgba(39, 75, 50, 0.92);
+}
+
 .source-tag-toggle-green.is-selected,
 .source-tag-toggle-green[aria-pressed="true"] {
   border-color: rgba(74, 222, 128, 0.42);
@@ -1623,6 +1639,11 @@ video.instagram-media-asset {
 
 .source-tag-toggle-amber .source-tag-toggle-name {
   color: #ffecc2;
+}
+
+.source-tag-toggle-amber:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(255, 206, 94, 0.52);
+  background: rgba(88, 61, 29, 0.92);
 }
 
 .source-tag-toggle-amber.is-selected,
@@ -1645,6 +1666,11 @@ video.instagram-media-asset {
   color: #ffdbe3;
 }
 
+.source-tag-toggle-rose:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(255, 145, 162, 0.5);
+  background: rgba(86, 39, 56, 0.92);
+}
+
 .source-tag-toggle-rose.is-selected,
 .source-tag-toggle-rose[aria-pressed="true"] {
   border-color: rgba(251, 113, 133, 0.42);
@@ -1663,6 +1689,11 @@ video.instagram-media-asset {
 
 .source-tag-toggle-purple .source-tag-toggle-name {
   color: #f0ddff;
+}
+
+.source-tag-toggle-purple:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(211, 160, 255, 0.5);
+  background: rgba(72, 45, 96, 0.92);
 }
 
 .source-tag-toggle-purple.is-selected,
@@ -1685,6 +1716,11 @@ video.instagram-media-asset {
   color: #d6faf4;
 }
 
+.source-tag-toggle-teal:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(96, 230, 213, 0.5);
+  background: rgba(34, 79, 74, 0.92);
+}
+
 .source-tag-toggle-teal.is-selected,
 .source-tag-toggle-teal[aria-pressed="true"] {
   border-color: rgba(45, 212, 191, 0.42);
@@ -1703,6 +1739,11 @@ video.instagram-media-asset {
 
 .source-tag-toggle-orange .source-tag-toggle-name {
   color: #ffe2ca;
+}
+
+.source-tag-toggle-orange:not(.is-selected):not([aria-pressed="true"]) {
+  border-color: rgba(255, 170, 100, 0.52);
+  background: rgba(93, 51, 29, 0.92);
 }
 
 .source-tag-toggle-orange.is-selected,
