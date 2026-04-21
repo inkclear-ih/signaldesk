@@ -3,33 +3,33 @@ import type {
   InboxView,
   ItemFilters,
   ItemSort,
-  SourceSort,
-  SourceTag
+  ItemTag,
+  SourceSort
 } from "@/lib/inbox/types";
 
-function toggleSourceTag(sourceTagIds: string[], tagId: string) {
-  return sourceTagIds.includes(tagId)
-    ? sourceTagIds.filter((id) => id !== tagId)
-    : [...sourceTagIds, tagId];
+function toggleItemTag(itemTagIds: string[], tagId: string) {
+  return itemTagIds.includes(tagId)
+    ? itemTagIds.filter((id) => id !== tagId)
+    : [...itemTagIds, tagId];
 }
 
-export function SourceTagFilterForm({
+export function ItemTagFilterForm({
   activeView,
   filters,
   itemSort,
   sourceSort,
-  sourceTags
+  itemTags
 }: {
   activeView: InboxView;
   filters: ItemFilters;
   itemSort: ItemSort;
   sourceSort: SourceSort;
-  sourceTags: SourceTag[];
+  itemTags: ItemTag[];
 }) {
-  if (!sourceTags.length) {
+  if (!itemTags.length) {
     return (
       <p className="muted source-tag-filter-empty">
-        Create tags on a source to filter source lists by them.
+        Create tags on an item to filter item results by them.
       </p>
     );
   }
@@ -37,13 +37,13 @@ export function SourceTagFilterForm({
   return (
     <div className="source-tag-filter-form">
       <div className="source-tag-filter-copy">
-        <span>Source tags</span>
+        <span>Item tags</span>
         <p className="muted">Match all selected tags.</p>
       </div>
 
       <div className="source-tag-filter-options">
-        {sourceTags.map((tag) => {
-          const selected = filters.sourceTagIds.includes(tag.id);
+        {itemTags.map((tag) => {
+          const selected = filters.itemTagIds.includes(tag.id);
 
           return (
             <a
@@ -54,13 +54,13 @@ export function SourceTagFilterForm({
                 view: activeView,
                 filters: {
                   ...filters,
-                  sourceTagIds: toggleSourceTag(filters.sourceTagIds, tag.id)
+                  itemTagIds: toggleItemTag(filters.itemTagIds, tag.id)
                 },
                 itemSort,
                 sourceSort
               })}
               key={tag.id}
-              title={selected ? `Remove ${tag.name} tag filter` : `Filter by ${tag.name}`}
+              title={selected ? `Remove ${tag.name} item tag filter` : `Filter by ${tag.name}`}
             >
               <span className="source-tag-toggle-name">{tag.name}</span>
             </a>
@@ -68,13 +68,13 @@ export function SourceTagFilterForm({
         })}
       </div>
 
-      {filters.sourceTagIds.length ? (
+      {filters.itemTagIds.length ? (
         <div className="source-tag-filter-actions">
           <a
             className="filter-clear"
             href={buildHref({
               view: activeView,
-              filters: { ...filters, sourceTagIds: [] },
+              filters: { ...filters, itemTagIds: [] },
               itemSort,
               sourceSort
             })}

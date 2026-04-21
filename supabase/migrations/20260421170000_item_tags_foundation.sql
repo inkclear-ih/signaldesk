@@ -123,7 +123,8 @@ using (
   )
 );
 
-create or replace view public.current_user_items as
+drop view if exists public.current_user_items;
+create view public.current_user_items as
 select
     i.id,
     i.source_id,

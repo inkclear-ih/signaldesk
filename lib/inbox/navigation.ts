@@ -26,6 +26,9 @@ export function buildHref({
   for (const sourceTagId of filters?.sourceTagIds ?? []) {
     params.append("sourceTag", sourceTagId);
   }
+  for (const itemTagId of filters?.itemTagIds ?? []) {
+    params.append("itemTag", itemTagId);
+  }
   if (filters?.newOnly) {
     params.set("new", "1");
   }

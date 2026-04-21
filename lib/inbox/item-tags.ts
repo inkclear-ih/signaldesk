@@ -49,3 +49,15 @@ export function cleanItemTags(value: unknown): ItemTag[] {
 
   return tags;
 }
+
+export function matchesAllItemTags(
+  itemTags: ItemTag[],
+  selectedTagIds: string[]
+): boolean {
+  if (!selectedTagIds.length) {
+    return true;
+  }
+
+  const assignedTagIds = new Set(itemTags.map((tag) => tag.id));
+  return selectedTagIds.every((tagId) => assignedTagIds.has(tagId));
+}

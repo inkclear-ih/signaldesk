@@ -10,6 +10,7 @@ import {
   filterUserSources,
   filterItemsByView,
   hasActiveFilters,
+  hasActiveItemFilters,
   parseFilters
 } from "@/lib/inbox/filters";
 import { cleanItemTags } from "@/lib/inbox/item-tags";
@@ -189,7 +190,8 @@ export default async function Home({
   const metricItemsList = (metricItems ?? []) as MetricItem[];
   const sourceIds = new Set(typedSources.map((source) => source.source_id));
   const sourceTagIds = new Set(allSourceTags.map((tag) => tag.id));
-  const filters = parseFilters(searchParams, sourceIds, sourceTagIds);
+  const itemTagIds = new Set(allItemTags.map((tag) => tag.id));
+  const filters = parseFilters(searchParams, sourceIds, sourceTagIds, itemTagIds);
   const latestRunsBySource = await getLatestRunsBySource(
     supabase,
     activeSources.map((source) => source.source_id)
@@ -203,11 +205,7 @@ export default async function Home({
   );
   const filteredSourceMetrics = filterSourceMetrics(sourceMetrics, filters);
   const filteredInactiveSources = filterUserSources(inactiveSources, filters);
-  const filteredItemsByView = filterItemsByView(
-    itemsByView,
-    filters,
-    sourceTagsBySource
-  );
+  const filteredItemsByView = filterItemsByView(itemsByView, filters);
   const sortedItemsByView: ItemsByView = {
     inbox: sortItems(filteredItemsByView.inbox, itemSort),
     saved: sortItems(filteredItemsByView.saved, itemSort),
@@ -223,6 +221,7 @@ export default async function Home({
     (item) => item.system_state === "known"
   );
   const filtersActive = hasActiveFilters(filters);
+  const itemFiltersActive = hasActiveItemFilters(filters);
   const currentHref = buildHref({
     view: activeView,
     filters,
@@ -288,9 +287,9 @@ export default async function Home({
         filters={filters}
         filtersActive={filtersActive}
         itemSort={itemSort}
+        itemTags={allItemTags}
         shownCount={activeItems.length}
         sourceMetrics={sourceMetrics}
-        sourceTags={allSourceTags}
         sourceSort={sourceSort}
         totalCount={itemsByView[activeView].length}
       />
@@ -305,7 +304,7 @@ export default async function Home({
       <ItemsView
         activeItems={activeItems}
         activeView={activeView}
-        filtersActive={filtersActive}
+        filtersActive={itemFiltersActive}
         itemSort={itemSort}
         itemTags={allItemTags}
         knownInboxItems={knownInboxItems}

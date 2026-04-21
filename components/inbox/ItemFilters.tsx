@@ -1,13 +1,13 @@
 import { buildHref } from "@/lib/inbox/navigation";
 import { ITEM_SORT_OPTIONS } from "@/lib/inbox/item-sort";
-import { SourceTagFilterForm } from "./SourceTagFilterForm";
+import { ItemTagFilterForm } from "./ItemTagFilterForm";
 import type {
   InboxView,
   ItemFilters as ItemFilterState,
   ItemSort,
   SourceMetric,
   SourceSort,
-  SourceTag
+  ItemTag
 } from "@/lib/inbox/types";
 
 export function ItemFilters({
@@ -15,9 +15,9 @@ export function ItemFilters({
   filters,
   filtersActive,
   itemSort,
+  itemTags,
   shownCount,
   sourceMetrics,
-  sourceTags,
   sourceSort,
   totalCount
 }: {
@@ -25,9 +25,9 @@ export function ItemFilters({
   filters: ItemFilterState;
   filtersActive: boolean;
   itemSort: ItemSort;
+  itemTags: ItemTag[];
   shownCount: number;
   sourceMetrics: SourceMetric[];
-  sourceTags: SourceTag[];
   sourceSort: SourceSort;
   totalCount: number;
 }) {
@@ -106,19 +106,19 @@ export function ItemFilters({
           </a>
         ) : null}
       </form>
-      <SourceTagFilterForm
+      <ItemTagFilterForm
         activeView={activeView}
         filters={filters}
         itemSort={itemSort}
         sourceSort={sourceSort}
-        sourceTags={sourceTags}
+        itemTags={itemTags}
       />
       <p className="muted filter-result">
         {shownCount} of {totalCount} items shown
         {selectedSource ? ` from ${selectedSource.name}` : ""}
-        {filters.sourceTagIds.length
-          ? ` matching ${filters.sourceTagIds.length} source tag${
-              filters.sourceTagIds.length === 1 ? "" : "s"
+        {filters.itemTagIds.length
+          ? ` matching ${filters.itemTagIds.length} item tag${
+              filters.itemTagIds.length === 1 ? "" : "s"
             }`
           : ""}
       </p>

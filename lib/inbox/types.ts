@@ -4,6 +4,7 @@ export type SearchParams = {
   view?: string;
   source?: string;
   sourceTag?: string | string[];
+  itemTag?: string | string[];
   new?: string;
   unreviewed?: string;
   itemSort?: string;
@@ -140,6 +141,7 @@ export type ScanState = "running" | "ok" | "partial" | "error";
 export type ItemFilters = {
   sourceId: string;
   sourceTagIds: string[];
+  itemTagIds: string[];
   newOnly: boolean;
   unreviewedOnly: boolean;
 };
