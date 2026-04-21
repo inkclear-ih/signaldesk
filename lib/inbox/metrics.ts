@@ -5,6 +5,7 @@ import type {
   Freshness,
   LatestRun,
   MetricItem,
+  ScanState,
   SourceMetric,
   TopMetrics,
   UserSource
@@ -109,6 +110,7 @@ export function buildSourceMetrics(
     };
     const latestRun = latestRunsBySource.get(source.source_id) ?? null;
     const runError = latestRun?.error_message ?? null;
+    const latestScanState = getLatestScanState(latestRun);
     const lastFetchedAt =
       source.last_fetched_at ?? latestRun?.finished_at ?? latestRun?.started_at ?? null;
     const status =
@@ -122,6 +124,9 @@ export function buildSourceMetrics(
       status,
       tags: cleanTags(source.tags),
       fetchedCount: latestRun?.fetched_count ?? null,
+      latestRunStartedAt: latestRun?.started_at ?? null,
+      latestRunFinishedAt: latestRun?.finished_at ?? null,
+      latestScanState,
       latestRunStatus: latestRun?.status ?? null,
       latestRunError: runError,
       snapshotCount: stat.snapshotCount,
@@ -131,11 +136,23 @@ export function buildSourceMetrics(
       lastFetchedAt,
       freshness: getFreshness(
         lastFetchedAt,
-        latestRun?.status ?? null,
+        latestScanState === "running" ? null : latestRun?.status ?? null,
         source.last_error ?? runError
       )
     };
   });
+}
+
+function getLatestScanState(latestRun: LatestRun | null): ScanState | null {
+  if (!latestRun) {
+    return null;
+  }
+
+  if (latestRun.finished_at === null) {
+    return "running";
+  }
+
+  return latestRun.status;
 }
 
 function getFreshness(
@@ -175,4 +192,3 @@ function getFreshness(
 
   return { label: `${diffDays}d ago`, state: "stale", timestamp };
 }
-

@@ -108,6 +108,8 @@ export type LatestRun = {
   error_message: string | null;
 };
 
+export type ScanState = "running" | "ok" | "partial" | "error";
+
 export type ItemFilters = {
   sourceId: string;
   newOnly: boolean;
@@ -136,6 +138,9 @@ export type SourceMetric = {
   status: string;
   tags: string[];
   fetchedCount: number | null;
+  latestRunStartedAt: string | null;
+  latestRunFinishedAt: string | null;
+  latestScanState: ScanState | null;
   latestRunStatus: LatestRun["status"] | null;
   latestRunError: string | null;
   snapshotCount: number;

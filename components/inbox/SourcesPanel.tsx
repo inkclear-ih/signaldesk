@@ -23,6 +23,7 @@ import type {
   InboxView,
   ItemFilters,
   ItemSort,
+  ScanState,
   SourceMetric,
   SourceSort,
   SourceSortKey,
@@ -35,6 +36,15 @@ import type { SourceScanScope } from "@/lib/ingestion/scan";
 type SourceDiscoveryState = {
   pageUrl: string;
   candidates: FeedDiscoveryCandidate[];
+};
+
+type ScanStatusSummary = {
+  label: string;
+  state: ScanState | "idle";
+  activeRunCount: number;
+  sourceCount: number;
+  timestamp: string | null;
+  detail: string;
 };
 
 export function SourcesPanel({
@@ -82,6 +92,12 @@ export function SourcesPanel({
     })
   );
   const discovery = parseSourceDiscovery(sourceDiscovery);
+  const runningMetrics = metrics.filter(
+    (metric) => metric.latestScanState === "running"
+  );
+  const overallScanSummary = buildScanStatusSummary("All sources", metrics);
+  const webFeedScanSummary = buildScanStatusSummary("Web/feed", webFeedMetrics);
+  const instagramScanSummary = buildScanStatusSummary("Instagram", instagramMetrics);
 
   return (
     <section className="panel sources-panel" aria-labelledby="sources-heading">
@@ -166,6 +182,12 @@ export function SourcesPanel({
       {sourceError ? (
         <p className="source-feedback source-feedback-error">{sourceError}</p>
       ) : null}
+      <div className="scan-status-strip" aria-label="Scan status">
+        <ScanStatusCard summary={overallScanSummary} />
+        <ScanStatusCard summary={webFeedScanSummary} />
+        <ScanStatusCard summary={instagramScanSummary} />
+      </div>
+      {runningMetrics.length ? <ScanRunningBanner metrics={runningMetrics} /> : null}
 
       <details className="advanced-source-form">
         <summary>Advanced: paste a feed URL</summary>
@@ -440,7 +462,7 @@ function SourceRow({
   if (metric.freshness.state === "stale" || metric.freshness.state === "never") {
     rowClasses.push("source-row-stale");
   }
-  if (metric.latestRunStatus === "error" || metric.source.last_error) {
+  if (metric.latestScanState === "error" || metric.source.last_error) {
     rowClasses.push("source-row-error");
   }
   const error = metric.latestRunError || metric.source.last_error;
@@ -464,13 +486,18 @@ function SourceRow({
           <span className={`status status-${metric.status}`}>
             {formatStatus(metric.status)}
           </span>
-          {metric.latestRunStatus ? (
-            <span className={`status status-${metric.latestRunStatus}`}>
-              run {formatStatus(metric.latestRunStatus)}
+          {metric.latestScanState ? (
+            <span className={`status status-${metric.latestScanState}`}>
+              {getScanStateLabel(metric.latestScanState)}
             </span>
           ) : null}
         </span>
         {metric.tags.length ? <Tags tags={metric.tags.slice(0, 3)} compact /> : null}
+        {metric.latestScanState ? (
+          <span className="source-scan-detail">
+            {getScanStateDetail(metric)}
+          </span>
+        ) : null}
         {error ? <span className="source-error">Last error: {error}</span> : null}
       </span>
       <span className="source-number" role="cell">
@@ -599,9 +626,9 @@ function InstagramSourceRow({
           <span className={`status status-${metric.status}`}>
             {formatStatus(metric.status)}
           </span>
-          {metric.latestRunStatus ? (
-            <span className={`status status-${metric.latestRunStatus}`}>
-              run {formatStatus(metric.latestRunStatus)}
+          {metric.latestScanState ? (
+            <span className={`status status-${metric.latestScanState}`}>
+              {getScanStateLabel(metric.latestScanState)}
             </span>
           ) : null}
         </span>
@@ -609,6 +636,11 @@ function InstagramSourceRow({
           Account posts flow through Instagram Graph API professional account
           discovery when the account and workspace token allow access.
         </p>
+        {metric.latestScanState ? (
+          <span className="source-scan-detail">
+            {getScanStateDetail(metric)}
+          </span>
+        ) : null}
         {error ? <span className="source-error">Last error: {error}</span> : null}
       </div>
       <div className="instagram-source-state">
@@ -749,6 +781,249 @@ function formatSourceType(source: UserSource): string {
   }
 
   return source.source_type.toUpperCase();
+}
+
+function ScanRunningBanner({ metrics }: { metrics: SourceMetric[] }) {
+  const families = new Set(
+    metrics.map((metric) =>
+      metric.source.source_type === "instagram" ? "Instagram" : "Web/feed"
+    )
+  );
+  const latestStartedAt = metrics.reduce<string | null>((latest, metric) => {
+    if (!metric.latestRunStartedAt) {
+      return latest;
+    }
+
+    if (!latest) {
+      return metric.latestRunStartedAt;
+    }
+
+    return Date.parse(metric.latestRunStartedAt) > Date.parse(latest)
+      ? metric.latestRunStartedAt
+      : latest;
+  }, null);
+
+  return (
+    <div className="scan-status-banner" role="status" aria-live="polite">
+      <strong>Scan running</strong>
+      <span>
+        {metrics.length} {metrics.length === 1 ? "source is" : "sources are"} currently
+        scanning{families.size ? ` (${[...families].join(", ")})` : ""}.
+        {latestStartedAt ? ` Started ${formatScanTimestamp(latestStartedAt)}.` : ""}
+      </span>
+    </div>
+  );
+}
+
+function ScanStatusCard({ summary }: { summary: ScanStatusSummary }) {
+  return (
+    <div className="scan-status-card">
+      <div className="scan-status-card-head">
+        <span className="scan-status-card-label">{summary.label}</span>
+        <span className={`status status-${summary.state}`}>
+          {getScanSummaryLabel(summary)}
+        </span>
+      </div>
+      <strong className="scan-status-card-detail">{summary.detail}</strong>
+      <span className="scan-status-card-meta">
+        {summary.timestamp ? formatScanTimestamp(summary.timestamp) : "No scan recorded"}
+      </span>
+    </div>
+  );
+}
+
+function buildScanStatusSummary(
+  label: string,
+  metrics: SourceMetric[]
+): ScanStatusSummary {
+  if (!metrics.length) {
+    return {
+      label,
+      state: "idle",
+      activeRunCount: 0,
+      sourceCount: 0,
+      timestamp: null,
+      detail: "No sources"
+    };
+  }
+
+  const runningMetrics = metrics.filter(
+    (metric) => metric.latestScanState === "running"
+  );
+
+  if (runningMetrics.length) {
+    const startedAt = getLatestTimestamp(
+      runningMetrics.map((metric) => metric.latestRunStartedAt)
+    );
+
+    return {
+      label,
+      state: "running",
+      activeRunCount: runningMetrics.length,
+      sourceCount: metrics.length,
+      timestamp: startedAt,
+      detail: `${runningMetrics.length} of ${metrics.length} source${
+        metrics.length === 1 ? "" : "s"
+      } scanning`
+    };
+  }
+
+  const latestFinishedMetric = getLatestFinishedMetric(metrics);
+  if (!latestFinishedMetric || !latestFinishedMetric.latestScanState) {
+    return {
+      label,
+      state: "idle",
+      activeRunCount: 0,
+      sourceCount: metrics.length,
+      timestamp: null,
+      detail: `${metrics.length} active source${metrics.length === 1 ? "" : "s"}`
+    };
+  }
+
+  if (latestFinishedMetric.latestScanState === "ok") {
+    return {
+      label,
+      state: "ok",
+      activeRunCount: 0,
+      sourceCount: metrics.length,
+      timestamp: latestFinishedMetric.latestRunFinishedAt,
+      detail: `${latestFinishedMetric.fetchedCount ?? 0} items fetched`
+    };
+  }
+
+  if (latestFinishedMetric.latestScanState === "partial") {
+    return {
+      label,
+      state: "partial",
+      activeRunCount: 0,
+      sourceCount: metrics.length,
+      timestamp: latestFinishedMetric.latestRunFinishedAt,
+      detail: "Completed with partial results"
+    };
+  }
+
+  return {
+    label,
+    state: "error",
+    activeRunCount: 0,
+    sourceCount: metrics.length,
+    timestamp: latestFinishedMetric.latestRunFinishedAt,
+    detail: "Last scan failed"
+  };
+}
+
+function getLatestFinishedMetric(metrics: SourceMetric[]): SourceMetric | null {
+  let latestMetric: SourceMetric | null = null;
+
+  for (const metric of metrics) {
+    if (!metric.latestRunFinishedAt || !metric.latestScanState) {
+      continue;
+    }
+
+    if (!latestMetric) {
+      latestMetric = metric;
+      continue;
+    }
+
+    if (
+      Date.parse(metric.latestRunFinishedAt) >
+      Date.parse(latestMetric.latestRunFinishedAt ?? "")
+    ) {
+      latestMetric = metric;
+    }
+  }
+
+  return latestMetric;
+}
+
+function getLatestTimestamp(values: Array<string | null>): string | null {
+  let latest: string | null = null;
+
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+
+    if (!latest || Date.parse(value) > Date.parse(latest)) {
+      latest = value;
+    }
+  }
+
+  return latest;
+}
+
+function getScanSummaryLabel(summary: ScanStatusSummary): string {
+  if (summary.state === "running") {
+    return "Running";
+  }
+
+  if (summary.state === "ok") {
+    return "Completed";
+  }
+
+  if (summary.state === "partial") {
+    return "Partial";
+  }
+
+  if (summary.state === "error") {
+    return "Failed";
+  }
+
+  return "Idle";
+}
+
+function getScanStateLabel(state: ScanState): string {
+  if (state === "running") {
+    return "scan running";
+  }
+
+  if (state === "ok") {
+    return "scan complete";
+  }
+
+  if (state === "partial") {
+    return "scan partial";
+  }
+
+  return "scan failed";
+}
+
+function getScanStateDetail(metric: SourceMetric): string {
+  if (metric.latestScanState === "running") {
+    return metric.latestRunStartedAt
+      ? `Started ${formatScanTimestamp(metric.latestRunStartedAt)}`
+      : "Scan is in progress";
+  }
+
+  if (metric.latestScanState === "ok") {
+    return metric.latestRunFinishedAt
+      ? `Completed ${formatScanTimestamp(metric.latestRunFinishedAt)}`
+      : "Completed";
+  }
+
+  if (metric.latestScanState === "partial") {
+    return metric.latestRunFinishedAt
+      ? `Completed with partial results ${formatScanTimestamp(metric.latestRunFinishedAt)}`
+      : "Completed with partial results";
+  }
+
+  return metric.latestRunFinishedAt
+    ? `Failed ${formatScanTimestamp(metric.latestRunFinishedAt)}`
+    : "Failed";
+}
+
+function formatScanTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "recently";
+  }
+
+  return date.toLocaleString("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 function formatConnectionExpiry(value: string | null): string | null {

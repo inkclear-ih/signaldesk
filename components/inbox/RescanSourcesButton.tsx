@@ -15,7 +15,7 @@ export function RescanSourcesButton({
 
   return (
     <button
-      className="button button-secondary button-compact"
+      className={`button button-secondary button-compact${pending ? " button-pending" : ""}`}
       disabled={disabled || pending}
       type="submit"
     >
