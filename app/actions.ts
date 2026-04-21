@@ -33,10 +33,14 @@ import {
   resolveBootstrapInstagramAccount
 } from "@/lib/instagram/meta";
 import {
+  isItemTagColor,
+  normalizeItemTagName
+} from "@/lib/inbox/item-tags";
+import {
   isSourceTagColor,
   normalizeSourceTagName
 } from "@/lib/inbox/source-tags";
-import type { SourceTag } from "@/lib/inbox/types";
+import type { ItemTag, SourceTag } from "@/lib/inbox/types";
 
 type DispositionState = "none" | "saved" | "archived" | "hidden";
 type UserSourceStatus = "active" | "paused" | "archived";
@@ -756,8 +760,190 @@ export async function clearSourceTagsFromSource(formData: FormData) {
   });
 }
 
+export async function createItemTag(formData: FormData) {
+  const rawName = String(formData.get("tagName") ?? "");
+  const name = normalizeItemTagName(rawName);
+  const color = String(formData.get("tagColor") ?? "");
+  const assignItemId = getAssignItemId(formData);
+
+  if (!name) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Enter a tag name."
+    });
+  }
+
+  if (!isItemTagColor(color)) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Choose a tag color from the palette."
+    });
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const existingTag = await findExistingItemTag(supabase, name);
+
+  let itemTagId = existingTag?.id ?? null;
+  let message = existingTag
+    ? `${existingTag.name} already exists.`
+    : `Created ${name}.`;
+
+  if (!itemTagId) {
+    const { data, error } = await supabase
+      .from("item_tags")
+      .insert({
+        user_id: userId,
+        name,
+        color
+      })
+      .select("id,name,color")
+      .single();
+
+    if (error) {
+      const duplicateTag = await findExistingItemTag(supabase, name);
+      if (!duplicateTag) {
+        finishItemMutation(formData, {
+          type: "error",
+          message: "Could not create that item tag."
+        });
+        return;
+      }
+
+      itemTagId = duplicateTag.id;
+      message = `${duplicateTag.name} already exists.`;
+    } else {
+      const createdTag = data as ItemTag;
+      itemTagId = createdTag.id;
+      message = `Created ${createdTag.name}.`;
+    }
+  }
+
+  if (assignItemId && itemTagId) {
+    const assigned = await assignTagToItem({
+      supabase,
+      userId,
+      itemId: assignItemId,
+      itemTagId
+    });
+
+    if (!assigned) {
+      finishItemMutation(formData, {
+        type: "error",
+        message: "Could not add that tag to the item."
+      });
+    }
+
+    message = existingTag
+      ? `${existingTag.name} added to the item.`
+      : `${name} created and added to the item.`;
+  }
+
+  finishItemMutation(formData, {
+    type: "message",
+    message
+  });
+}
+
+export async function assignItemTagToItem(formData: FormData) {
+  const itemId = getItemId(formData);
+  const itemTagId = String(formData.get("itemTagId") ?? "").trim();
+
+  if (!itemId || !itemTagId) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Could not add that tag to the item."
+    });
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const assigned = await assignTagToItem({
+    supabase,
+    userId,
+    itemId,
+    itemTagId
+  });
+
+  if (!assigned) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Could not add that tag to the item."
+    });
+  }
+
+  finishItemMutation(formData, {
+    type: "message",
+    message: "Item tag added."
+  });
+}
+
+export async function removeItemTagFromItem(formData: FormData) {
+  const itemId = getItemId(formData);
+  const itemTagId = String(formData.get("itemTagId") ?? "").trim();
+
+  if (!itemId || !itemTagId) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Could not remove that tag from the item."
+    });
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const { error } = await supabase
+    .from("user_item_tags")
+    .delete()
+    .eq("user_id", userId)
+    .eq("item_id", itemId)
+    .eq("item_tag_id", itemTagId);
+
+  if (error) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Could not remove that tag from the item."
+    });
+  }
+
+  finishItemMutation(formData, {
+    type: "message",
+    message: "Item tag removed."
+  });
+}
+
+export async function clearItemTagsFromItem(formData: FormData) {
+  const itemId = getItemId(formData);
+
+  if (!itemId) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Could not clear tags from that item."
+    });
+  }
+
+  const { supabase, userId } = await getAuthenticatedContext();
+  const { error } = await supabase
+    .from("user_item_tags")
+    .delete()
+    .eq("user_id", userId)
+    .eq("item_id", itemId);
+
+  if (error) {
+    finishItemMutation(formData, {
+      type: "error",
+      message: "Could not clear tags from that item."
+    });
+  }
+
+  finishItemMutation(formData, {
+    type: "message",
+    message: "Item tags cleared."
+  });
+}
+
 function getItemId(formData: FormData): string {
   return String(formData.get("itemId") ?? "");
+}
+
+function getAssignItemId(formData: FormData): string {
+  return String(formData.get("assignItemId") ?? "").trim();
 }
 
 function getUserSourceId(formData: FormData): string {
@@ -813,6 +999,27 @@ async function findExistingSourceTag(
   );
 }
 
+async function findExistingItemTag(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  name: string
+): Promise<ItemTag | null> {
+  const { data, error } = await supabase
+    .from("item_tags")
+    .select("id,name,color")
+    .order("name", { ascending: true });
+
+  if (error) {
+    return null;
+  }
+
+  const normalizedName = name.toLocaleLowerCase();
+  return (
+    ((data ?? []) as ItemTag[]).find(
+      (tag) => tag.name.toLocaleLowerCase() === normalizedName
+    ) ?? null
+  );
+}
+
 function isDisposition(value: string): value is Exclude<DispositionState, "none"> {
   return DISPOSITION_STATES.has(value);
 }
@@ -849,17 +1056,57 @@ async function assignTagToSource({
   return errorCode === "23505";
 }
 
-function finishItemMutation(formData: FormData): never | void {
+async function assignTagToItem({
+  supabase,
+  userId,
+  itemId,
+  itemTagId
+}: {
+  supabase: ReturnType<typeof createSupabaseServerClient>;
+  userId: string;
+  itemId: string;
+  itemTagId: string;
+}): Promise<boolean> {
+  const { error } = await supabase.from("user_item_tags").insert({
+    user_id: userId,
+    item_id: itemId,
+    item_tag_id: itemTagId
+  });
+
+  if (!error) {
+    return true;
+  }
+
+  const errorCode =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+      ? ((error as { code: string }).code as string)
+      : null;
+
+  return errorCode === "23505";
+}
+
+function finishItemMutation(
+  formData: FormData,
+  feedback?: { type: "message" | "error"; message: string }
+): never | void {
   revalidatePath("/");
   const returnTo = getSafeReturnTo(formData);
   if (returnTo) {
-    redirect(returnTo);
+    redirect(feedback ? addItemFeedbackParam(returnTo, feedback) : clearItemFeedbackParams(returnTo));
   }
 
   const view = String(formData.get("view") ?? "");
 
   if (view && view !== "inbox") {
-    redirect(`/?view=${encodeURIComponent(view)}`);
+    const path = `/?view=${encodeURIComponent(view)}`;
+    redirect(feedback ? addItemFeedbackParam(path, feedback) : clearItemFeedbackParams(path));
+  }
+
+  if (feedback) {
+    redirect(addItemFeedbackParam("/", feedback));
   }
 }
 
@@ -967,6 +1214,29 @@ function addFeedbackParam(
     feedback.type === "message" ? "sourceMessage" : "sourceError",
     feedback.message
   );
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+}
+
+function addItemFeedbackParam(
+  path: string,
+  feedback: { type: "message" | "error"; message: string }
+): string {
+  const url = new URL(path, "http://signaldesk.local");
+  url.searchParams.delete("itemMessage");
+  url.searchParams.delete("itemError");
+  url.searchParams.set(
+    feedback.type === "message" ? "itemMessage" : "itemError",
+    feedback.message
+  );
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+}
+
+function clearItemFeedbackParams(path: string): string {
+  const url = new URL(path, "http://signaldesk.local");
+  url.searchParams.delete("itemMessage");
+  url.searchParams.delete("itemError");
   const search = url.searchParams.toString();
   return search ? `${url.pathname}?${search}` : url.pathname;
 }

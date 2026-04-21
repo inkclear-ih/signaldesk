@@ -1,21 +1,23 @@
-import { cleanSourceTags } from "@/lib/inbox/source-tags";
-import type { SourceTag } from "@/lib/inbox/types";
+import type { TagColor } from "@/lib/inbox/types";
 
 export function Tags({
   compact,
   tags
 }: {
   compact?: boolean;
-  tags: SourceTag[];
+  tags: Array<{
+    id: string;
+    name: string;
+    color: TagColor;
+  }>;
 }) {
-  const cleanedTags = cleanSourceTags(tags);
-  if (!cleanedTags.length) {
+  if (!tags.length) {
     return null;
   }
 
   return (
     <div className={compact ? "tags tags-compact" : "tags"}>
-      {cleanedTags.map((tag) => (
+      {tags.map((tag) => (
         <span className={`tag-chip tag-chip-${tag.color}`} key={tag.id}>
           {tag.name}
         </span>

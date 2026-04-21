@@ -5,7 +5,9 @@ import {
   restoreItemToInbox,
   setItemDisposition
 } from "@/app/actions";
+import { cleanItemTags } from "@/lib/inbox/item-tags";
 import { Tags } from "./Tags";
+import { ItemTagEditor } from "./ItemTagEditor";
 import {
   cleanText,
   formatDate,
@@ -19,17 +21,20 @@ import type {
   DispositionState,
   InboxItem,
   InboxView,
+  ItemTag,
   SourceTag
 } from "@/lib/inbox/types";
 
 export function ItemCard({
   item,
-  tags,
+  sourceTags,
+  itemTags,
   activeView,
   returnTo
 }: {
   item: InboxItem;
-  tags: SourceTag[];
+  sourceTags: SourceTag[];
+  itemTags: ItemTag[];
   activeView: InboxView;
   returnTo: string;
 }) {
@@ -41,6 +46,7 @@ export function ItemCard({
   const publishedDate = formatDate(item.published_at);
   const removalTarget = reviewed ? "Reviewed" : "Inbox";
   const instagramMedia = getInstagramMedia(item);
+  const assignedItemTags = cleanItemTags(item.item_tags);
   const itemClassName = [
     "item",
     item.system_state === "new" ? "item-new" : null,
@@ -65,7 +71,24 @@ export function ItemCard({
           <span>No published date</span>
         )}
       </div>
-      {tags.length ? <Tags tags={tags} /> : <div className="tags" />}
+      {sourceTags.length || assignedItemTags.length ? (
+        <>
+          {sourceTags.length ? (
+            <>
+              <div className="published-date">Source tags</div>
+              <Tags tags={sourceTags} />
+            </>
+          ) : null}
+          {assignedItemTags.length ? (
+            <>
+              <div className="published-date">Item tags</div>
+              <Tags tags={assignedItemTags} />
+            </>
+          ) : null}
+        </>
+      ) : (
+        <div className="tags" />
+      )}
       {summary ? <p className="summary-text">{summary}</p> : null}
       <div className="item-status">
         <span className={item.system_state === "new" ? "badge" : "badge badge-known"}>
@@ -79,6 +102,9 @@ export function ItemCard({
             {formatDisposition(item.disposition_state)}
           </span>
         ) : null}
+      </div>
+      <div className="published-date">
+        <ItemTagEditor item={item} itemTags={itemTags} returnTo={returnTo} />
       </div>
       <div className="item-actions" aria-label={`Actions for ${title}`}>
         <ItemActionForm

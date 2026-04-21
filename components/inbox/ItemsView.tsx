@@ -4,6 +4,7 @@ import { describeItemSort } from "@/lib/inbox/item-sort";
 import type {
   InboxItem,
   InboxView,
+  ItemTag,
   ItemSort,
   SourceTag
 } from "@/lib/inbox/types";
@@ -16,6 +17,7 @@ export function ItemsView({
   knownInboxItems,
   newInboxItems,
   returnTo,
+  itemTags,
   sourceTags
 }: {
   activeItems: InboxItem[];
@@ -25,6 +27,7 @@ export function ItemsView({
   knownInboxItems: InboxItem[];
   newInboxItems: InboxItem[];
   returnTo: string;
+  itemTags: ItemTag[];
   sourceTags: Map<string, SourceTag[]>;
 }) {
   const sortDescription = describeItemSort(itemSort);
@@ -46,6 +49,7 @@ export function ItemsView({
             title="New to review"
             items={newInboxItems}
             emptyMessage="No new items need review."
+            itemTags={itemTags}
             sourceTags={sourceTags}
             activeView={activeView}
             filtersActive={filtersActive}
@@ -56,6 +60,7 @@ export function ItemsView({
             description={knownDescription}
             items={knownInboxItems}
             emptyMessage="Known items are previously seen by Signaldesk but still unreviewed. Empty is good: nothing older is waiting on you."
+            itemTags={itemTags}
             sourceTags={sourceTags}
             activeView={activeView}
             filtersActive={filtersActive}
@@ -69,6 +74,7 @@ export function ItemsView({
             description={sortDescription}
             items={activeItems}
             emptyMessage={VIEW_DETAILS[activeView].emptyMessage}
+            itemTags={itemTags}
             sourceTags={sourceTags}
             activeView={activeView}
             filtersActive={filtersActive}

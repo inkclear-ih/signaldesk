@@ -13,12 +13,14 @@ export type SearchParams = {
   sourceMessage?: string;
   sourceError?: string;
   sourceDiscovery?: string;
+  itemMessage?: string;
+  itemError?: string;
 };
 
 export type DispositionState = "none" | "saved" | "archived" | "hidden";
 export type InboxView = "inbox" | "saved" | "archived" | "hidden" | "reviewed";
 export type SourceType = "rss" | "atom" | "instagram";
-export type SourceTagColor =
+export type TagColor =
   | "slate"
   | "blue"
   | "green"
@@ -27,6 +29,8 @@ export type SourceTagColor =
   | "purple"
   | "teal"
   | "orange";
+export type SourceTagColor = TagColor;
+export type ItemTagColor = TagColor;
 export type ItemSortKey = "default" | "seen" | "published" | "source";
 export type SourceSortKey =
   | "source"
@@ -58,6 +62,7 @@ export type InboxItem = {
   saved_at: string | null;
   archived_at: string | null;
   hidden_at: string | null;
+  item_tags: ItemTag[];
 };
 
 export type UserSource = {
@@ -82,6 +87,12 @@ export type SourceTag = {
   id: string;
   name: string;
   color: SourceTagColor;
+};
+
+export type ItemTag = {
+  id: string;
+  name: string;
+  color: ItemTagColor;
 };
 
 export type UserInstagramConnection = {

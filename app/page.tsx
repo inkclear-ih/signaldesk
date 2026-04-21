@@ -12,6 +12,7 @@ import {
   hasActiveFilters,
   parseFilters
 } from "@/lib/inbox/filters";
+import { cleanItemTags } from "@/lib/inbox/item-tags";
 import { parseItemSort, sortItems } from "@/lib/inbox/item-sort";
 import { buildSourceMetrics, buildTopMetrics, getLatestRunsBySource } from "@/lib/inbox/metrics";
 import { buildHref, parseView } from "@/lib/inbox/navigation";
@@ -19,6 +20,7 @@ import { cleanSourceTags } from "@/lib/inbox/source-tags";
 import { parseSourceSort, sortSourceMetrics } from "@/lib/inbox/source-table";
 import type {
   InboxItem,
+  ItemTag,
   ItemsByView,
   MetricItem,
   SearchParams,
@@ -60,6 +62,7 @@ export default async function Home({
     { data: reviewedItems },
     { data: sources },
     { data: sourceTags },
+    { data: itemTags },
     { data: instagramConnection },
     { data: metricItems },
     { count: totalItemCount },
@@ -128,6 +131,10 @@ export default async function Home({
       .select("id,name,color")
       .order("name", { ascending: true }),
     supabase
+      .from("item_tags")
+      .select("id,name,color")
+      .order("name", { ascending: true }),
+    supabase
       .from("current_user_instagram_connections")
       .select("*")
       .order("updated_at", { ascending: false })
@@ -160,18 +167,19 @@ export default async function Home({
   ]);
 
   const inboxItems = [
-    ...((newInboxItemsData ?? []) as InboxItem[]),
-    ...((knownInboxItemsData ?? []) as InboxItem[])
+    ...hydrateInboxItems((newInboxItemsData ?? []) as InboxItem[]),
+    ...hydrateInboxItems((knownInboxItemsData ?? []) as InboxItem[])
   ];
   const itemsByView: ItemsByView = {
     inbox: inboxItems,
-    saved: (savedItems ?? []) as InboxItem[],
-    archived: (archivedItems ?? []) as InboxItem[],
-    hidden: (hiddenItems ?? []) as InboxItem[],
-    reviewed: (reviewedItems ?? []) as InboxItem[]
+    saved: hydrateInboxItems((savedItems ?? []) as InboxItem[]),
+    archived: hydrateInboxItems((archivedItems ?? []) as InboxItem[]),
+    hidden: hydrateInboxItems((hiddenItems ?? []) as InboxItem[]),
+    reviewed: hydrateInboxItems((reviewedItems ?? []) as InboxItem[])
   };
   const typedSources = (sources ?? []) as UserSource[];
   const allSourceTags = cleanSourceTags((sourceTags ?? []) as SourceTag[]);
+  const allItemTags = cleanItemTags((itemTags ?? []) as ItemTag[]);
   const activeSources = typedSources.filter(
     (source) => source.user_source_status === "active"
   );
@@ -287,11 +295,19 @@ export default async function Home({
         totalCount={itemsByView[activeView].length}
       />
 
+      {searchParams?.itemMessage ? (
+        <p className="source-feedback source-feedback-ok">{searchParams.itemMessage}</p>
+      ) : null}
+      {searchParams?.itemError ? (
+        <p className="source-feedback source-feedback-error">{searchParams.itemError}</p>
+      ) : null}
+
       <ItemsView
         activeItems={activeItems}
         activeView={activeView}
         filtersActive={filtersActive}
         itemSort={itemSort}
+        itemTags={allItemTags}
         knownInboxItems={knownInboxItems}
         newInboxItems={newInboxItems}
         returnTo={currentHref}
@@ -335,4 +351,11 @@ function SignedOut({ sent, error }: Pick<SearchParams, "sent" | "error">) {
       </section>
     </main>
   );
+}
+
+function hydrateInboxItems(items: InboxItem[]): InboxItem[] {
+  return items.map((item) => ({
+    ...item,
+    item_tags: cleanItemTags(item.item_tags)
+  }));
 }

@@ -1,5 +1,5 @@
 import { ItemCard } from "./ItemCard";
-import type { InboxItem, InboxView, SourceTag } from "@/lib/inbox/types";
+import type { InboxItem, InboxView, ItemTag, SourceTag } from "@/lib/inbox/types";
 
 export function ItemSection({
   title,
@@ -7,6 +7,7 @@ export function ItemSection({
   items,
   emptyMessage,
   sourceTags,
+  itemTags,
   activeView,
   filtersActive,
   returnTo
@@ -16,6 +17,7 @@ export function ItemSection({
   items: InboxItem[];
   emptyMessage: string;
   sourceTags: Map<string, SourceTag[]>;
+  itemTags: ItemTag[];
   activeView: InboxView;
   filtersActive: boolean;
   returnTo: string;
@@ -40,7 +42,8 @@ export function ItemSection({
             <ItemCard
               key={item.id}
               item={item}
-              tags={sourceTags.get(item.source_id) ?? []}
+              itemTags={itemTags}
+              sourceTags={sourceTags.get(item.source_id) ?? []}
               activeView={activeView}
               returnTo={returnTo}
             />
