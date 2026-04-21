@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { buildHref } from "@/lib/inbox/navigation";
 import type {
   InboxView,
@@ -46,10 +47,11 @@ export function ItemTagFilterForm({
           const selected = filters.itemTagIds.includes(tag.id);
 
           return (
-            <a
+            <Link
               className={`tag-filter-option source-tag-toggle source-tag-toggle-${tag.color}${
                 selected ? " is-selected" : ""
               }`}
+              data-preserve-inbox-ui="true"
               href={buildHref({
                 view: activeView,
                 filters: {
@@ -60,27 +62,30 @@ export function ItemTagFilterForm({
                 sourceSort
               })}
               key={tag.id}
+              scroll={false}
               title={selected ? `Remove ${tag.name} item tag filter` : `Filter by ${tag.name}`}
             >
               <span className="source-tag-toggle-name">{tag.name}</span>
-            </a>
+            </Link>
           );
         })}
       </div>
 
       {filters.itemTagIds.length ? (
         <div className="source-tag-filter-actions">
-          <a
+          <Link
             className="filter-clear"
+            data-preserve-inbox-ui="true"
             href={buildHref({
               view: activeView,
               filters: { ...filters, itemTagIds: [] },
               itemSort,
               sourceSort
             })}
+            scroll={false}
           >
             Clear tags
-          </a>
+          </Link>
         </div>
       ) : null}
     </div>

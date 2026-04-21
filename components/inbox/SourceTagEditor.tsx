@@ -19,7 +19,10 @@ export function SourceTagEditor({
   const assignedTagIds = new Set(source.source_tags.map((tag) => tag.id));
 
   return (
-    <details className="source-tag-editor">
+    <details
+      className="source-tag-editor"
+      data-persist-details-id={`source-tag-editor:${source.user_source_id}`}
+    >
       <summary>
         {source.source_tags.length ? "Edit tags" : "Add source tags"}
       </summary>

@@ -1,5 +1,6 @@
 import { InboxOverview } from "@/components/inbox/InboxOverview";
 import { ItemFilters } from "@/components/inbox/ItemFilters";
+import { InboxUiStateController } from "@/components/inbox/InboxUiStateController";
 import { ItemsView } from "@/components/inbox/ItemsView";
 import { SourcesPanel } from "@/components/inbox/SourcesPanel";
 import { TabsNav } from "@/components/inbox/TabsNav";
@@ -239,6 +240,7 @@ export default async function Home({
 
   return (
     <main className="page">
+      <InboxUiStateController />
       <header className="topbar">
         <div className="brand">
           <div className="brand-lockup">

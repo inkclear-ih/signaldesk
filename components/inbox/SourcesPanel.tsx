@@ -54,18 +54,21 @@ function CollapsibleSourceFamilySection({
   children,
   className,
   count,
+  persistenceId,
   rescanControl,
   title
 }: {
   children: React.ReactNode;
   className?: string;
   count: number;
+  persistenceId: string;
   rescanControl?: React.ReactNode;
   title: string;
 }) {
   return (
     <details
       className={`advanced-source-form source-family-details${className ? ` ${className}` : ""}`}
+      data-persist-details-id={persistenceId}
       open
     >
       <summary>
@@ -228,7 +231,10 @@ export function SourcesPanel({
       </div>
       {runningMetrics.length ? <ScanRunningBanner metrics={runningMetrics} /> : null}
 
-      <details className="advanced-source-form">
+      <details
+        className="advanced-source-form"
+        data-persist-details-id="sources:advanced-feed-url"
+      >
         <summary>Advanced: paste a feed URL</summary>
         <form className="feed-url-form" action={addFeedSource}>
           <input type="hidden" name="returnTo" value={currentHref} />
@@ -270,6 +276,7 @@ export function SourcesPanel({
 
       <CollapsibleSourceFamilySection
         count={webFeedMetrics.length}
+        persistenceId="sources:web-feed"
         rescanControl={
           <RescanScopeForm
             disabled={scannableWebFeedSourceCount === 0}
@@ -328,6 +335,7 @@ export function SourcesPanel({
       <InstagramSourcesSection
         scannableSourceCount={scannableInstagramSourceCount}
         metrics={instagramMetrics}
+        persistenceId="sources:instagram"
         returnTo={currentHref}
         sourceTags={sourceTags}
       />
@@ -335,6 +343,7 @@ export function SourcesPanel({
       {sortedInactiveSources.length ? (
         <CollapsibleSourceFamilySection
           count={sortedInactiveSources.length}
+          persistenceId="sources:inactive"
           title="Paused and archived"
         >
           <div className="inactive-sources" aria-label="Paused and archived sources">
@@ -592,11 +601,13 @@ function SourceRow({
 
 function InstagramSourcesSection({
   metrics,
+  persistenceId,
   returnTo,
   scannableSourceCount,
   sourceTags
 }: {
   metrics: SourceMetric[];
+  persistenceId: string;
   returnTo: string;
   scannableSourceCount: number;
   sourceTags: SourceTag[];
@@ -605,6 +616,7 @@ function InstagramSourcesSection({
     <CollapsibleSourceFamilySection
       className="instagram-source-section"
       count={metrics.length}
+      persistenceId={persistenceId}
       rescanControl={
         <RescanScopeForm
           disabled={scannableSourceCount === 0}
