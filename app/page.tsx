@@ -78,7 +78,7 @@ export default async function Home({
       .eq("disposition_state", "none")
       .eq("review_state", "unreviewed")
       .eq("system_state", "known")
-      .order("last_seen_at", { ascending: false })
+      .order("became_known_at", { ascending: false, nullsFirst: false })
       .order("published_at", { ascending: false, nullsFirst: false })
       .order("first_seen_at", { ascending: false })
       .limit(ITEM_LIMIT),
