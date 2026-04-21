@@ -15,7 +15,12 @@ import {
 } from "@/lib/inbox/formatting";
 import { InstagramMediaPreview } from "./InstagramMediaPreview";
 import type { ReactNode } from "react";
-import type { DispositionState, InboxItem, InboxView } from "@/lib/inbox/types";
+import type {
+  DispositionState,
+  InboxItem,
+  InboxView,
+  SourceTag
+} from "@/lib/inbox/types";
 
 export function ItemCard({
   item,
@@ -24,7 +29,7 @@ export function ItemCard({
   returnTo
 }: {
   item: InboxItem;
-  tags: string[];
+  tags: SourceTag[];
   activeView: InboxView;
   returnTo: string;
 }) {

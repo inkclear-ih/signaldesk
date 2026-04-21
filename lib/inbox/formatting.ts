@@ -2,12 +2,6 @@ import type { DispositionState } from "./types";
 
 const SUMMARY_MAX_CHARS = 360;
 
-export function cleanTags(tags: string[] | null): string[] {
-  return (tags ?? [])
-    .map((tag) => cleanText(tag))
-    .filter((tag): tag is string => Boolean(tag));
-}
-
 export function cleanText(value: unknown): string | null {
   if (value == null) {
     return null;
@@ -141,4 +135,3 @@ export function maxIsoDate(
 export function compareIsoDate(a: string | null, b: string | null): number {
   return parseDateValue(a) - parseDateValue(b);
 }
-

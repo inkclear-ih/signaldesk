@@ -1,5 +1,5 @@
 import { ItemCard } from "./ItemCard";
-import type { InboxItem, InboxView } from "@/lib/inbox/types";
+import type { InboxItem, InboxView, SourceTag } from "@/lib/inbox/types";
 
 export function ItemSection({
   title,
@@ -15,7 +15,7 @@ export function ItemSection({
   description?: string;
   items: InboxItem[];
   emptyMessage: string;
-  sourceTags: Map<string, string[]>;
+  sourceTags: Map<string, SourceTag[]>;
   activeView: InboxView;
   filtersActive: boolean;
   returnTo: string;

@@ -1,7 +1,12 @@
 import { ItemSection } from "./ItemSection";
 import { ITEM_LIMIT, VIEW_DETAILS } from "@/lib/inbox/constants";
 import { describeItemSort } from "@/lib/inbox/item-sort";
-import type { InboxItem, InboxView, ItemSort } from "@/lib/inbox/types";
+import type {
+  InboxItem,
+  InboxView,
+  ItemSort,
+  SourceTag
+} from "@/lib/inbox/types";
 
 export function ItemsView({
   activeItems,
@@ -20,7 +25,7 @@ export function ItemsView({
   knownInboxItems: InboxItem[];
   newInboxItems: InboxItem[];
   returnTo: string;
-  sourceTags: Map<string, string[]>;
+  sourceTags: Map<string, SourceTag[]>;
 }) {
   const sortDescription = describeItemSort(itemSort);
   const knownDescription =

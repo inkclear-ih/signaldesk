@@ -1,5 +1,6 @@
 import { RECENT_RUN_LIMIT } from "./constants";
-import { cleanTags, cleanText, maxIsoDate, parseDateValue } from "./formatting";
+import { cleanText, maxIsoDate, parseDateValue } from "./formatting";
+import { cleanSourceTags } from "./source-tags";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   Freshness,
@@ -122,7 +123,7 @@ export function buildSourceMetrics(
       source,
       name: cleanText(source.display_name) ?? cleanText(source.source_name) ?? "Unknown source",
       status,
-      tags: cleanTags(source.tags),
+      tags: cleanSourceTags(source.source_tags),
       fetchedCount: latestRun?.fetched_count ?? null,
       latestRunStartedAt: latestRun?.started_at ?? null,
       latestRunFinishedAt: latestRun?.finished_at ?? null,
